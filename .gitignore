@@ -1,0 +1,14 @@
+# Maven/Java ignores
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+
+# IDEs
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+
