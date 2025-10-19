@@ -1,3 +1,3 @@
 package com.arsw.shipwreckeds.controller;
 
-public class AuthController { }
+public class GameController { }
