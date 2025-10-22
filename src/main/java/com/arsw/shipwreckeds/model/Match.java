@@ -11,7 +11,7 @@ import lombok.Setter;
  * Clase que representa una partida (Match) dentro del juego.
  * 
  * Una partida contiene la lista de jugadores, NPCs, tareas activas,
- * el estado actual del juego y el tiempo restante. 
+ * el estado actual del juego y el tiempo restante.
  * Además, controla la lógica de inicio, asignación del infiltrado,
  * conteo del tiempo y finalización del juego.
  * 
@@ -36,7 +36,7 @@ public class Match {
     /**
      * Constructor principal para crear una nueva partida.
      * 
-     * @param id identificador único de la partida
+     * @param id   identificador único de la partida
      * @param code código que los jugadores usan para unirse
      */
     public Match(Long id, String code) {
@@ -55,12 +55,11 @@ public class Match {
      * Se asigna el infiltrado y se activa el temporizador.
      */
     public void startMatch() {
-        if (players.size() < 4) {
-            System.out.println("No hay suficientes jugadores para iniciar la partida.");
+        if (players.size() < 5) {
+            System.out
+                    .println("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
             return;
         }
-
-        assignInfiltrator();
         this.status = MatchStatus.STARTED;
         this.timerSeconds = 300; // 5 minutos
         System.out.println("La partida ha comenzado. Tiempo restante: " + timerSeconds + " segundos.");
@@ -70,7 +69,8 @@ public class Match {
      * Asigna aleatoriamente un jugador como el infiltrado.
      */
     public void assignInfiltrator() {
-        if (players.isEmpty()) return;
+        if (players.isEmpty())
+            return;
 
         Random random = new Random();
         int index = random.nextInt(players.size());
@@ -83,7 +83,8 @@ public class Match {
      * Reduce el temporizador de la partida y controla el fin del juego.
      */
     public void tickTimer() {
-        if (status != MatchStatus.STARTED) return;
+        if (status != MatchStatus.STARTED)
+            return;
 
         timerSeconds--;
         if (timerSeconds <= 0) {

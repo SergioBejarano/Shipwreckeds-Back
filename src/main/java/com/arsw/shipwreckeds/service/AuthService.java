@@ -33,11 +33,25 @@ public class AuthService {
      */
     public Player login(String username, String password) {
         if (username == null || username.trim().isEmpty() ||
-            password == null || password.trim().isEmpty()) {
+                password == null || password.trim().isEmpty()) {
             throw new IllegalArgumentException("Por favor ingresa tu nombre y contraseña para continuar.");
         }
 
-        // chequeo atomico sobre el mapa
+        // validar contra usuarios predefinidos (epica 1)
+        // sólo se permiten estas cuentas en este MVP
+        var allowed = Map.of(
+                "ana", "1234",
+                "bruno", "1234",
+                "carla", "1234",
+                "diego", "1234",
+                "eva", "1234");
+
+        String expected = allowed.get(username);
+        if (expected == null || !expected.equals(password)) {
+            throw new IllegalArgumentException("Credenciales inválidas.");
+        }
+
+        // chequeo atomico sobre el mapa (evitar nombres duplicados en sesión)
         if (loggedPlayers.containsKey(username)) {
             throw new IllegalArgumentException("Este nombre ya está en uso.");
         }
@@ -56,7 +70,8 @@ public class AuthService {
      * @return Player si está conectado, o null si no existe
      */
     public Player getPlayer(String username) {
-        if (username == null) return null;
+        if (username == null)
+            return null;
         return loggedPlayers.get(username);
     }
 
@@ -67,8 +82,8 @@ public class AuthService {
      * @return true si existía y fue removido, false si no existía
      */
     public boolean logout(String username) {
-        if (username == null) return false;
+        if (username == null)
+            return false;
         return loggedPlayers.remove(username) != null;
     }
 }
-

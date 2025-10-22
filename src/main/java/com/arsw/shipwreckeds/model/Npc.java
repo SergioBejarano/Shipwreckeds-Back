@@ -24,23 +24,24 @@ public class Npc {
     private Position position;
     private boolean active;
     private double movementSpeed;
+    private boolean infiltrator;
 
     /**
      * Constructor que crea un nuevo NPC con su apariencia y posición inicial.
      * 
-     * @param id identificador único del NPC
-     * @param skinId apariencia del NPC (coincide con la del infiltrado)
-     * @param position posición inicial en el mapa
+     * @param id            identificador único del NPC
+     * @param skinId        apariencia del NPC (coincide con la del infiltrado)
+     * @param position      posición inicial en el mapa
      * @param movementSpeed velocidad base de movimiento
      */
-    public Npc(Long id, String skinId, Position position, double movementSpeed) {
+    public Npc(Long id, String skinId, Position position, double movementSpeed, boolean infiltrator) {
         this.id = id;
         this.skinId = skinId;
         this.position = position;
         this.movementSpeed = movementSpeed;
         this.active = true;
+        this.infiltrator = infiltrator;
     }
-
 
     /**
      * Mueve al NPC hacia una nueva posición simulando comportamiento autónomo.
@@ -63,7 +64,8 @@ public class Npc {
      * por un hilo o por un sistema de IA simple.
      */
     public void performRandomMovement() {
-        if (!active) return;
+        if (!active)
+            return;
 
         int deltaX = (int) (Math.random() * 3 - 1); // movimiento -1, 0 o +1
         int deltaY = (int) (Math.random() * 3 - 1);
