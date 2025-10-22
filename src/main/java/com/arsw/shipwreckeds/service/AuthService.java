@@ -1,30 +1,31 @@
 package com.arsw.shipwreckeds.service;
 
-
 import com.arsw.shipwreckeds.model.Player;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Servicio que gestiona el inicio de sesión simulado.
- * 
+ *
  * Los jugadores se almacenan temporalmente en memoria.
  * No hay persistencia ni autenticación real.
- * 
+ *
  * @author Daniel Ruge
  * @version 19/10/2025
  */
 @Service
 public class AuthService {
 
-    private final Map<String, Player> loggedPlayers = new HashMap<>();
-    private static long nextId = 1;
+    // ConcurrentHashMap para seguridad en concurrencia (múltiples requests)
+    private final Map<String, Player> loggedPlayers = new ConcurrentHashMap<>();
+    private final AtomicLong nextId = new AtomicLong(1);
 
     /**
      * Intenta iniciar sesión con el nombre y contraseña ingresados.
-     * 
+     *
      * @param username nombre de usuario ingresado
      * @param password contraseña ingresada
      * @return Player asociado al nombre
@@ -36,15 +37,38 @@ public class AuthService {
             throw new IllegalArgumentException("Por favor ingresa tu nombre y contraseña para continuar.");
         }
 
+        // chequeo atomico sobre el mapa
         if (loggedPlayers.containsKey(username)) {
             throw new IllegalArgumentException("Este nombre ya está en uso.");
         }
 
-        Player player = new Player(nextId++, username, "default-skin", null);
+        Player player = new Player(nextId.getAndIncrement(), username, "default-skin", null);
         loggedPlayers.put(username, player);
-
 
         System.out.println("Jugador conectado: " + username);
         return player;
     }
+
+    /**
+     * Retorna el Player actualmente logueado por su username.
+     *
+     * @param username nombre del jugador
+     * @return Player si está conectado, o null si no existe
+     */
+    public Player getPlayer(String username) {
+        if (username == null) return null;
+        return loggedPlayers.get(username);
+    }
+
+    /**
+     * Elimina al jugador de la lista de conectados (opcional, útil para pruebas).
+     *
+     * @param username nombre del jugador a desconectar
+     * @return true si existía y fue removido, false si no existía
+     */
+    public boolean logout(String username) {
+        if (username == null) return false;
+        return loggedPlayers.remove(username) != null;
+    }
 }
+
