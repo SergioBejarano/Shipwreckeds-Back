@@ -22,4 +22,14 @@ public class WebSocketController {
         String dest = "/topic/lobby/" + match.getCode();
         messagingTemplate.convertAndSend(dest, match);
     }
+
+    /**
+     * Publica el GameState completo a /topic/game/{code}
+     */
+    public void broadcastGameState(String code, Object gameState) {
+        if (code == null)
+            return;
+        String dest = "/topic/game/" + code;
+        messagingTemplate.convertAndSend(dest, gameState);
+    }
 }

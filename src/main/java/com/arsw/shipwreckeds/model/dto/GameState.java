@@ -1,0 +1,29 @@
+package com.arsw.shipwreckeds.model.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class GameState {
+    private String code;
+    private long timestamp;
+    private Island island;
+    private List<AvatarState> avatars;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Island {
+        private double cx;
+        private double cy;
+        private double radius;
+    }
+}

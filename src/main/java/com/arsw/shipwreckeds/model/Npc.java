@@ -67,13 +67,13 @@ public class Npc {
         if (!active)
             return;
 
-        int deltaX = (int) (Math.random() * 3 - 1); // movimiento -1, 0 o +1
-        int deltaY = (int) (Math.random() * 3 - 1);
+        double deltaX = (Math.random() * 2.0 - 1.0); // movimiento en -1..1
+        double deltaY = (Math.random() * 2.0 - 1.0);
 
-        int newX = position.getX() + deltaX;
-        int newY = position.getY() + deltaY;
+        double newX = position.getX() + deltaX * movementSpeed;
+        double newY = position.getY() + deltaY * movementSpeed;
 
-        moveTo(newX, newY);
+        moveTo((int) Math.round(newX), (int) Math.round(newY));
     }
 
     /**

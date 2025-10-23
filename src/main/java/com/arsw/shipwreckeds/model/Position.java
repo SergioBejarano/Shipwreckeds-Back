@@ -13,16 +13,13 @@ import lombok.Data;
  * @version 19/10/2025
  */
 
- @Data
- @AllArgsConstructor
+@Data
+@AllArgsConstructor
 public class Position {
 
-    // Coordenadas en el mapa
-    private int x;
-    private int y;
-
-
-
+    // Coordenadas en el mapa (double para permitir movimiento suave)
+    private double x;
+    private double y;
 
     /**
      * Mueve la posición a un nuevo punto en el mapa.
@@ -30,7 +27,7 @@ public class Position {
      * @param newX nueva coordenada X
      * @param newY nueva coordenada Y
      */
-    public void moveTo(int newX, int newY) {
+    public void moveTo(double newX, double newY) {
         this.x = newX;
         this.y = newY;
         System.out.println("Posición actualizada a (" + x + ", " + y + ").");

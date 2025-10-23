@@ -52,8 +52,11 @@ public class AuthService {
         }
 
         // chequeo atomico sobre el mapa (evitar nombres duplicados en sesión)
+        // Si el nombre ya está en uso, asumimos que es una sesión antigua (ej. refresh)
+        // y la reemplazamos para permitir reconexiones desde el mismo navegador.
         if (loggedPlayers.containsKey(username)) {
-            throw new IllegalArgumentException("Este nombre ya está en uso.");
+            System.out.println("Nombre de usuario ya en uso, reemplazando sesión anterior: " + username);
+            loggedPlayers.remove(username);
         }
 
         Player player = new Player(nextId.getAndIncrement(), username, "default-skin", null);
