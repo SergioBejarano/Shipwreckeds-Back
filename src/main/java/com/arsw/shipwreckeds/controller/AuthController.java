@@ -30,11 +30,15 @@ public class AuthController {
             Player player = authService.login(request.getUsername(), request.getPassword());
             return ResponseEntity.ok(player);
         } catch (IllegalArgumentException e) {
+            // Si el mensaje indica que el usuario ya está conectado, devolvemos 409 Conflict
+            if (e.getMessage() != null && e.getMessage().contains("ya conectado")) {
+                return ResponseEntity.status(409).body(e.getMessage());
+            }
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    // logout endpoint is optional; frontend may call this if needed
+    // logout endpoint; frontend puede llamarlo en beforeunload o al hacer logout explícito
     @PostMapping("/logout/{username}")
     public ResponseEntity<?> logout(@org.springframework.web.bind.annotation.PathVariable String username) {
         boolean ok = authService.logout(username);

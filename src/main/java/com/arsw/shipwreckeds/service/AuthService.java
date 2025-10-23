@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Servicio que gestiona el inicio de sesión simulado.
  *
  * Los jugadores se almacenan temporalmente en memoria.
- * No hay persistencia ni autenticación real.
+ * No hay persistencia ni autenticación real (MVP).
  *
  * @author Daniel Ruge
  * @version 19/10/2025
@@ -25,11 +25,12 @@ public class AuthService {
 
     /**
      * Intenta iniciar sesión con el nombre y contraseña ingresados.
+     * Rechaza el login si el username ya tiene una sesión activa.
      *
-     * @param username nombre de usuario ingresado
-     * @param password contraseña ingresada
-     * @return Player asociado al nombre
-     * @throws IllegalArgumentException si hay errores de validación
+     * @param username nombre de usuario
+     * @param password contraseña
+     * @return Player creado para la sesión
+     * @throws IllegalArgumentException si credenciales inválidas o usuario ya conectado
      */
     public Player login(String username, String password) {
         if (username == null || username.trim().isEmpty() ||
@@ -51,19 +52,16 @@ public class AuthService {
             throw new IllegalArgumentException("Credenciales inválidas.");
         }
 
-        // chequeo atomico sobre el mapa (evitar nombres duplicados en sesión)
-        // Si el nombre ya está en uso, asumimos que es una sesión antigua (ej. refresh)
-        // y la reemplazamos para permitir reconexiones desde el mismo navegador.
-        if (loggedPlayers.containsKey(username)) {
-            System.out.println("Nombre de usuario ya en uso, reemplazando sesión anterior: " + username);
-            loggedPlayers.remove(username);
+        // Intento atómico de inserción: si ya hay una sesión activa para ese username, rechazamos.
+        Player candidate = new Player(nextId.getAndIncrement(), username, "default-skin", null);
+        Player previous = loggedPlayers.putIfAbsent(username, candidate);
+        if (previous != null) {
+            // Ya había alguien conectado con ese nombre
+            throw new IllegalArgumentException("Usuario ya conectado desde otro cliente.");
         }
 
-        Player player = new Player(nextId.getAndIncrement(), username, "default-skin", null);
-        loggedPlayers.put(username, player);
-
         System.out.println("Jugador conectado: " + username);
-        return player;
+        return candidate;
     }
 
     /**
