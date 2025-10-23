@@ -7,7 +7,6 @@ import com.arsw.shipwreckeds.model.dto.CreateMatchResponse;
 import com.arsw.shipwreckeds.model.dto.JoinMatchRequest;
 import com.arsw.shipwreckeds.service.MatchService;
 import com.arsw.shipwreckeds.service.AuthService;
-import com.arsw.shipwreckeds.controller.WebSocketController;
 import com.arsw.shipwreckeds.service.RoleService;
 import com.arsw.shipwreckeds.service.NpcService;
 import org.springframework.http.ResponseEntity;
@@ -129,9 +128,14 @@ public class MatchController {
             com.arsw.shipwreckeds.model.Position pos = p.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            avatars.add(new com.arsw.shipwreckeds.model.dto.AvatarState(p.getId(), "human", p.getUsername(), x, y,
-                    p.isInfiltrator(), p.isAlive()));
+
+            if (p.isInfiltrator()) {
+                avatars.add(new com.arsw.shipwreckeds.model.dto.AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive()));
+            } else {
+                avatars.add(new com.arsw.shipwreckeds.model.dto.AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive()));
+            }
         }
+        // luego sigue agregando NPCs igual que antes
         for (com.arsw.shipwreckeds.model.Npc n : match.getNpcs()) {
             com.arsw.shipwreckeds.model.Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;

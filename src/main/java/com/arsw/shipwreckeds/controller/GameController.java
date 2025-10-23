@@ -124,8 +124,15 @@ public class GameController {
             Position pos = p.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            AvatarState a = new AvatarState(p.getId(), "human", p.getUsername(), x, y, p.isInfiltrator(), p.isAlive());
-            avatars.add(a);
+
+            if (p.isInfiltrator()) {
+                // representado como NPC para TODOS (incluido el propio jugador infiltrado)
+                AvatarState a = new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive());
+                avatars.add(a);
+            } else {
+                AvatarState a = new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive());
+                avatars.add(a);
+            }
         }
         for (Npc n : match.getNpcs()) {
             Position pos = n.getPosition();
