@@ -61,7 +61,7 @@ public class Match {
             return;
         }
         this.status = MatchStatus.STARTED;
-        this.timerSeconds = 300; // 5 minutos
+        this.timerSeconds = 15 * 60; // 15 minutos
         System.out.println("La partida ha comenzado. Tiempo restante: " + timerSeconds + " segundos.");
     }
 

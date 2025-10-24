@@ -14,6 +14,7 @@ import java.util.List;
 public class GameState {
     private String code;
     private long timestamp;
+    private int timerSeconds;
     private Island island;
     private List<AvatarState> avatars;
 

@@ -142,6 +142,6 @@ public class GameController {
             avatars.add(a);
         }
         GameState.Island isl = new GameState.Island(0.0, 0.0, 100.0);
-        return new GameState(match.getCode(), System.currentTimeMillis(), isl, avatars);
+        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars);
     }
 }

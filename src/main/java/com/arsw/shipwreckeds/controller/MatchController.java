@@ -1,56 +1,62 @@
 package com.arsw.shipwreckeds.controller;
 
 import com.arsw.shipwreckeds.model.Match;
+import com.arsw.shipwreckeds.model.Npc;
 import com.arsw.shipwreckeds.model.Player;
+import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.CreateMatchRequest;
 import com.arsw.shipwreckeds.model.dto.CreateMatchResponse;
 import com.arsw.shipwreckeds.model.dto.JoinMatchRequest;
-import com.arsw.shipwreckeds.service.MatchService;
+import com.arsw.shipwreckeds.model.dto.AvatarState;
+import com.arsw.shipwreckeds.model.dto.GameState;
 import com.arsw.shipwreckeds.service.AuthService;
-import com.arsw.shipwreckeds.service.RoleService;
+import com.arsw.shipwreckeds.service.GameEngine;
+import com.arsw.shipwreckeds.service.MatchService;
 import com.arsw.shipwreckeds.service.NpcService;
+import com.arsw.shipwreckeds.service.RoleService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Controlador que maneja creación y unión a partidas (lobbies).
- * MVP: almacenamiento en memoria, códigos alfanuméricos únicos y TTL simple.
- * 
- * @author Daniel Ruge
- * @version 22/10/2025
+ * Implementación limpia y con buenas prácticas de imports y estructura.
  */
 @RestController
 @RequestMapping("/api/match")
 @CrossOrigin(origins = "*")
 public class MatchController {
-
     private final MatchService matchService;
     private final AuthService authService;
     private final WebSocketController webSocketController;
     private final RoleService roleService;
     private final NpcService npcService;
+    private final GameEngine gameEngine;
 
-    public MatchController(MatchService matchService, AuthService authService,
+    public MatchController(MatchService matchService,
+            AuthService authService,
             WebSocketController webSocketController,
             RoleService roleService,
-            NpcService npcService) {
+            NpcService npcService,
+            GameEngine gameEngine) {
         this.matchService = matchService;
         this.authService = authService;
         this.webSocketController = webSocketController;
         this.roleService = roleService;
         this.npcService = npcService;
+        this.gameEngine = gameEngine;
     }
 
     @PostMapping("/create")
     public ResponseEntity<?> createMatch(@RequestBody CreateMatchRequest req) {
         try {
-            // require that the host is a logged player (from AuthService)
             Player host = authService.getPlayer(req.getHostName());
             if (host == null) {
                 return ResponseEntity.badRequest().body("Usuario host no conectado. Inicia sesión primero.");
             }
             CreateMatchResponse res = matchService.createMatch(host);
-            // broadcast initial lobby state
             webSocketController.broadcastLobbyUpdate(matchService.getMatchByCode(res.getCode()));
             return ResponseEntity.ok(res);
         } catch (IllegalArgumentException e) {
@@ -66,7 +72,6 @@ public class MatchController {
                 return ResponseEntity.badRequest().body("Usuario no conectado. Inicia sesión primero.");
             }
             Match match = matchService.joinMatch(req.getCode(), player);
-            // broadcast updated lobby state
             webSocketController.broadcastLobbyUpdate(match);
             return ResponseEntity.ok(match);
         } catch (IllegalArgumentException e) {
@@ -80,7 +85,6 @@ public class MatchController {
         if (match == null)
             return ResponseEntity.badRequest().body("Partida no encontrada.");
 
-        // simple host check: the first player is the host when created
         if (match.getPlayers().isEmpty() || !match.getPlayers().get(0).getUsername().equals(hostName)) {
             return ResponseEntity.status(403).body("Solo el host puede iniciar la partida.");
         }
@@ -104,49 +108,48 @@ public class MatchController {
                 double r = rnd.nextDouble() * (islandRadius * 0.7);
                 double x = Math.cos(ang) * r;
                 double y = Math.sin(ang) * r;
-                p.setPosition(new com.arsw.shipwreckeds.model.Position(x, y));
+                p.setPosition(new Position(x, y));
             }
         }
-        // ensure npcs have position (NpcService should have set them but double-check)
-        for (com.arsw.shipwreckeds.model.Npc n : match.getNpcs()) {
+        // ensure npcs have position
+        for (Npc n : match.getNpcs()) {
             if (n.getPosition() == null) {
                 double ang = rnd.nextDouble() * Math.PI * 2;
                 double r = rnd.nextDouble() * (islandRadius * 0.7);
                 double x = Math.cos(ang) * r;
                 double y = Math.sin(ang) * r;
-                n.setPosition(new com.arsw.shipwreckeds.model.Position(x, y));
+                n.setPosition(new Position(x, y));
             }
         }
 
         // broadcast final lobby and initial game state
         webSocketController.broadcastLobbyUpdate(match);
 
-        // build GameState DTO and broadcast to /topic/game/{code}
-        // reuse logic similar to GameController.buildGameState
-        java.util.List<com.arsw.shipwreckeds.model.dto.AvatarState> avatars = new java.util.ArrayList<>();
+        List<AvatarState> avatars = new ArrayList<>();
         for (Player p : match.getPlayers()) {
-            com.arsw.shipwreckeds.model.Position pos = p.getPosition();
+            Position pos = p.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-
             if (p.isInfiltrator()) {
-                avatars.add(new com.arsw.shipwreckeds.model.dto.AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive()));
+                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive()));
             } else {
-                avatars.add(new com.arsw.shipwreckeds.model.dto.AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive()));
+                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive()));
             }
         }
-        // luego sigue agregando NPCs igual que antes
-        for (com.arsw.shipwreckeds.model.Npc n : match.getNpcs()) {
-            com.arsw.shipwreckeds.model.Position pos = n.getPosition();
+        for (Npc n : match.getNpcs()) {
+            Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            avatars.add(new com.arsw.shipwreckeds.model.dto.AvatarState(n.getId(), "npc", null, x, y, false, true));
+            avatars.add(new AvatarState(n.getId(), "npc", null, x, y, false, true));
         }
-        com.arsw.shipwreckeds.model.dto.GameState.Island isl = new com.arsw.shipwreckeds.model.dto.GameState.Island(0.0,
-                0.0, islandRadius);
-        com.arsw.shipwreckeds.model.dto.GameState gs = new com.arsw.shipwreckeds.model.dto.GameState(match.getCode(),
-                System.currentTimeMillis(), isl, avatars);
+
+        GameState.Island isl = new GameState.Island(0.0, 0.0, islandRadius);
+        GameState gs = new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl,
+                avatars);
         webSocketController.broadcastGameState(match.getCode(), gs);
+
+        // start server-side countdown ticker for the match
+        gameEngine.startMatchTicker(match);
 
         return ResponseEntity.ok(match);
     }
