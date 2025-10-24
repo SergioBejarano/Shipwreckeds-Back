@@ -74,13 +74,19 @@ public class GameEngine {
             Position pos = p.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, p.isInfiltrator(), p.isAlive()));
+            if (p.isInfiltrator()) {
+                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(), "NPC-" + p.getId()));
+            } else {
+                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
+                        p.getUsername()));
+            }
         }
         for (Npc n : match.getNpcs()) {
             Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            avatars.add(new AvatarState(n.getId(), "npc", null, x, y, false, true));
+            avatars.add(
+                    new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(), n.getDisplayName()));
         }
         GameState.Island isl = new GameState.Island(0.0, 0.0, 100.0);
         return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars);

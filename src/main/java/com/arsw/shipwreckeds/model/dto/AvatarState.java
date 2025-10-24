@@ -17,4 +17,5 @@ public class AvatarState {
     private double y;
     private boolean isInfiltrator;
     private boolean isAlive;
+    private String displayName; // visible label to show in UI (NPC-xxxx or username)
 }

@@ -32,6 +32,10 @@ public class Match {
     private MatchStatus status;
     private int timerSeconds;
     private Player infiltrator;
+    // Voting state for expulsions
+    private boolean votingActive;
+    // username -> targetId (the id of the NPC or player voted)
+    private java.util.Map<String, Long> votesByPlayer;
 
     /**
      * Constructor principal para crear una nueva partida.
@@ -98,6 +102,44 @@ public class Match {
     public void endMatch() {
         this.status = MatchStatus.FINISHED;
         System.out.println("La partida ha terminado.");
+    }
+
+    // --- voting helpers ---
+    public boolean isVotingActive() {
+        return votingActive;
+    }
+
+    public void startVoting() {
+        this.votingActive = true;
+        if (this.votesByPlayer == null)
+            this.votesByPlayer = new java.util.concurrent.ConcurrentHashMap<>();
+        this.votesByPlayer.clear();
+        System.out.println("Votación iniciada para partida " + this.code);
+    }
+
+    public void stopVoting() {
+        this.votingActive = false;
+    }
+
+    public void recordVote(String username, Long targetId) {
+        if (this.votesByPlayer == null)
+            this.votesByPlayer = new java.util.concurrent.ConcurrentHashMap<>();
+        this.votesByPlayer.put(username, targetId);
+    }
+
+    public java.util.Map<String, Long> getVotesByPlayer() {
+        if (this.votesByPlayer == null)
+            this.votesByPlayer = new java.util.concurrent.ConcurrentHashMap<>();
+        return this.votesByPlayer;
+    }
+
+    public int countHumanAlivePlayers() {
+        // count only alive players who are NOT the infiltrator (only survivors vote)
+        return (int) this.players.stream().filter(p -> p.isAlive() && !p.isInfiltrator()).count();
+    }
+
+    public boolean allHumansVoted() {
+        return this.votesByPlayer != null && this.votesByPlayer.size() >= countHumanAlivePlayers();
     }
 
     /**

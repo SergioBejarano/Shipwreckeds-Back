@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class NpcService {
 
-    private final AtomicLong nextNpcId = new AtomicLong(1);
+    // start NPC ids at a high offset to avoid colliding with player ids
+    private final AtomicLong nextNpcId = new AtomicLong(100000);
 
     /**
      * Genera NPCs simples para la partida. Según la épica se crean 3 NPCs:

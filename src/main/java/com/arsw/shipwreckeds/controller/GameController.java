@@ -127,10 +127,12 @@ public class GameController {
 
             if (p.isInfiltrator()) {
                 // representado como NPC para TODOS (incluido el propio jugador infiltrado)
-                AvatarState a = new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive());
+                String dname = "NPC-" + p.getId();
+                AvatarState a = new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive(), dname);
                 avatars.add(a);
             } else {
-                AvatarState a = new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive());
+                AvatarState a = new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
+                        p.getUsername());
                 avatars.add(a);
             }
         }
@@ -138,7 +140,7 @@ public class GameController {
             Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            AvatarState a = new AvatarState(n.getId(), "npc", null, x, y, false, true);
+            AvatarState a = new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName());
             avatars.add(a);
         }
         GameState.Island isl = new GameState.Island(0.0, 0.0, 100.0);

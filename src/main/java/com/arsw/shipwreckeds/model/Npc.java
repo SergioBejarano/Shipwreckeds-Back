@@ -25,6 +25,7 @@ public class Npc {
     private boolean active;
     private double movementSpeed;
     private boolean infiltrator;
+    private String displayName;
 
     /**
      * Constructor que crea un nuevo NPC con su apariencia y posición inicial.
@@ -41,6 +42,7 @@ public class Npc {
         this.movementSpeed = movementSpeed;
         this.active = true;
         this.infiltrator = infiltrator;
+        this.displayName = "NPC-" + id;
     }
 
     /**
@@ -82,5 +84,13 @@ public class Npc {
     public void deactivate() {
         this.active = false;
         System.out.println("El NPC " + id + " ha sido eliminado del juego.");
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 }

@@ -32,4 +32,24 @@ public class WebSocketController {
         String dest = "/topic/game/" + code;
         messagingTemplate.convertAndSend(dest, gameState);
     }
+
+    /**
+     * Broadcast that a voting session has started. Payload can be a VoteStart DTO.
+     */
+    public void broadcastVoteStart(String code, Object voteStart) {
+        if (code == null)
+            return;
+        String dest = "/topic/game/" + code + "/vote/start";
+        messagingTemplate.convertAndSend(dest, voteStart);
+    }
+
+    /**
+     * Broadcast final vote results.
+     */
+    public void broadcastVoteResult(String code, Object result) {
+        if (code == null)
+            return;
+        String dest = "/topic/game/" + code + "/vote/result";
+        messagingTemplate.convertAndSend(dest, result);
+    }
 }

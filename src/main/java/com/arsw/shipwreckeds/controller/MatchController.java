@@ -9,6 +9,10 @@ import com.arsw.shipwreckeds.model.dto.CreateMatchResponse;
 import com.arsw.shipwreckeds.model.dto.JoinMatchRequest;
 import com.arsw.shipwreckeds.model.dto.AvatarState;
 import com.arsw.shipwreckeds.model.dto.GameState;
+import com.arsw.shipwreckeds.model.dto.VoteAck;
+import com.arsw.shipwreckeds.model.dto.VoteRequest;
+import com.arsw.shipwreckeds.model.dto.VoteResult;
+import com.arsw.shipwreckeds.model.dto.VoteStart;
 import com.arsw.shipwreckeds.service.AuthService;
 import com.arsw.shipwreckeds.service.GameEngine;
 import com.arsw.shipwreckeds.service.MatchService;
@@ -131,16 +135,17 @@ public class MatchController {
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
             if (p.isInfiltrator()) {
-                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive()));
+                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive(), "NPC-" + p.getId()));
             } else {
-                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive()));
+                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
+                        p.getUsername()));
             }
         }
         for (Npc n : match.getNpcs()) {
             Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            avatars.add(new AvatarState(n.getId(), "npc", null, x, y, false, true));
+            avatars.add(new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName()));
         }
 
         GameState.Island isl = new GameState.Island(0.0, 0.0, islandRadius);
@@ -154,11 +159,160 @@ public class MatchController {
         return ResponseEntity.ok(match);
     }
 
+    @PostMapping("/{code}/startVote")
+    public ResponseEntity<?> startVote(@PathVariable String code, @RequestParam String username) {
+        Match match = matchService.getMatchByCode(code);
+        if (match == null)
+            return ResponseEntity.badRequest().body("Partida no encontrada.");
+        if (match.getStatus() != null && match.getStatus().name().equals("STARTED") == false)
+            return ResponseEntity.badRequest().body("La partida no está en curso.");
+
+        // ensure player exists and is alive and is NOT the infiltrator
+        Player p = match.getPlayers().stream().filter(pl -> pl.getUsername().equals(username)).findFirst().orElse(null);
+        if (p == null || !p.isAlive())
+            return ResponseEntity.status(403).body("Jugador no válido para iniciar votación.");
+        if (p.isInfiltrator())
+            return ResponseEntity.status(403).body("El infiltrado no puede iniciar votaciones.");
+
+        if (match.isVotingActive())
+            return ResponseEntity.badRequest().body("Ya hay una votación en curso.");
+
+        // Build options: include NPCs and any human players that are disguised as
+        // infiltrators
+        List<AvatarState> options = new ArrayList<>();
+        // NPCs
+        for (Npc n : match.getNpcs()) {
+            Position pos = n.getPosition();
+            double x = pos != null ? pos.getX() : 0.0;
+            double y = pos != null ? pos.getY() : 0.0;
+            options.add(
+                    new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(), n.getDisplayName()));
+        }
+        // Players who are infiltrators should also be votable (they appear as NPC on
+        // the island)
+        for (Player pl : match.getPlayers()) {
+            if (pl.isInfiltrator() && pl.isAlive()) {
+                Position pos = pl.getPosition();
+                double x = pos != null ? pos.getX() : 0.0;
+                double y = pos != null ? pos.getY() : 0.0;
+                // represent as npc in options (no ownerUsername)
+                options.add(new AvatarState(pl.getId(), "npc", null, x, y, true, pl.isAlive(), "NPC-" + pl.getId()));
+            }
+        }
+
+        match.startVoting();
+        // broadcast game state (infiltrators must be represented as NPCs with no
+        // ownerUsername)
+        webSocketController.broadcastGameState(match.getCode(), buildGameStateForMatch(match));
+        VoteStart vs = new VoteStart(options, "Iniciar votación: elige un NPC para expulsar");
+        webSocketController.broadcastVoteStart(code, vs);
+        return ResponseEntity.ok("Votación iniciada");
+    }
+
+    @PostMapping("/{code}/vote")
+    public ResponseEntity<?> submitVote(@PathVariable String code, @RequestBody VoteRequest req) {
+        Match match = matchService.getMatchByCode(code);
+        if (match == null)
+            return ResponseEntity.badRequest().body("Partida no encontrada.");
+        if (!match.isVotingActive())
+            return ResponseEntity.badRequest().body("No hay votación activa.");
+
+        // validate voter
+        Player voter = match.getPlayers().stream().filter(pl -> pl.getUsername().equals(req.getUsername())).findFirst()
+                .orElse(null);
+        if (voter == null || !voter.isAlive())
+            return ResponseEntity.status(403).body("Jugador no válido para votar.");
+        if (voter.isInfiltrator())
+            return ResponseEntity.status(403).body("El infiltrado no puede votar.");
+
+        // record vote
+        match.recordVote(req.getUsername(), req.getTargetId());
+
+        // ack to voter
+        VoteAck ack = new VoteAck(req.getUsername(), "Voto registrado correctamente, esperando resultados finales.");
+
+        // if all humans have voted, compute results
+        if (match.allHumansVoted()) {
+            java.util.Map<Long, Integer> counts = new java.util.HashMap<>();
+            for (Long tid : match.getVotesByPlayer().values()) {
+                counts.put(tid, counts.getOrDefault(tid, 0) + 1);
+            }
+
+            // find id with maximum votes
+            Long expelledId = counts.entrySet().stream()
+                    .max(java.util.Comparator.comparingInt(java.util.Map.Entry::getValue))
+                    .map(java.util.Map.Entry::getKey)
+                    .orElse(null);
+
+            // determine if expelled is player or npc
+            Player expelledPlayer = match.getPlayers().stream().filter(pl -> pl.getId().equals(expelledId)).findFirst()
+                    .orElse(null);
+            if (expelledPlayer != null) {
+                // human expelled
+                expelledPlayer.setAlive(false);
+                match.stopVoting();
+                match.endMatch();
+                gameEngine.stopMatchTicker(match.getCode());
+                VoteResult vr = new VoteResult(counts, expelledId, "human",
+                        "Se ha expulsado al jugador humano. Naufragos ganan.");
+                webSocketController.broadcastVoteResult(code, vr);
+                // broadcast final game state
+                webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
+                return ResponseEntity.ok(ack);
+            }
+
+            // otherwise try NPC
+            Npc expelledNpc = match.getNpcs().stream().filter(n -> n.getId().equals(expelledId)).findFirst()
+                    .orElse(null);
+            if (expelledNpc != null) {
+                // remove NPC
+                expelledNpc.deactivate();
+                match.getNpcs().removeIf(n -> n.getId().equals(expelledId));
+                match.stopVoting();
+                VoteResult vr = new VoteResult(counts, expelledId, "npc", "Se ha expulsado jugador NPC.");
+                webSocketController.broadcastVoteResult(code, vr);
+                // broadcast updated game state
+                webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
+                return ResponseEntity.ok(ack);
+            }
+
+            // fallback: no matching target
+            match.stopVoting();
+            VoteResult vr = new VoteResult(counts, null, "none", "No se encontró objetivo expulsable.");
+            webSocketController.broadcastVoteResult(code, vr);
+        }
+
+        return ResponseEntity.ok(ack);
+    }
+
     @GetMapping("/{code}")
     public ResponseEntity<?> getMatch(@PathVariable String code) {
         Match m = matchService.getMatchByCode(code);
         if (m == null)
             return ResponseEntity.notFound().build();
         return ResponseEntity.ok(m);
+    }
+
+    // Helper to build GameState DTO from Match
+    private GameState buildGameStateForMatch(Match match) {
+        List<AvatarState> avatars = new ArrayList<>();
+        for (Player p : match.getPlayers()) {
+            Position pos = p.getPosition();
+            double x = pos != null ? pos.getX() : 0.0;
+            double y = pos != null ? pos.getY() : 0.0;
+            String type = p.isInfiltrator() ? "npc" : "human";
+            String owner = p.isInfiltrator() ? null : p.getUsername();
+            String dname = p.isInfiltrator() ? "NPC-" + p.getId() : p.getUsername();
+            avatars.add(new AvatarState(p.getId(), type, owner, x, y, p.isInfiltrator(), p.isAlive(), dname));
+        }
+        for (Npc n : match.getNpcs()) {
+            Position pos = n.getPosition();
+            double x = pos != null ? pos.getX() : 0.0;
+            double y = pos != null ? pos.getY() : 0.0;
+            avatars.add(
+                    new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(), n.getDisplayName()));
+        }
+        GameState.Island isl = new GameState.Island(0.0, 0.0, 100.0);
+        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars);
     }
 }
