@@ -1,6 +1,7 @@
 package com.arsw.shipwreckeds.controller;
 
 import com.arsw.shipwreckeds.model.Match;
+import com.arsw.shipwreckeds.model.MatchStatus;
 import com.arsw.shipwreckeds.model.Npc;
 import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
@@ -24,6 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Controller
 public class GameController {
+
+    private static final double ISLAND_RADIUS = 100.0;
+    private static final double BOAT_X = ISLAND_RADIUS + 12.0;
+    private static final double BOAT_Y = 0.0;
+    private static final double BOAT_INTERACTION_RADIUS = 25.0;
 
     private final MatchService matchService;
     private final AuthService authService;
@@ -85,8 +91,7 @@ public class GameController {
         dy /= len;
 
         // step size
-        double islandRadius = 100.0; // default radius, ideally from GameEngine
-        double step = islandRadius * 0.035;
+        double step = ISLAND_RADIUS * 0.035;
 
         synchronized (match) {
             Position pos = target.getPosition();
@@ -98,14 +103,14 @@ public class GameController {
             double proposedY = pos.getY() + dy * step;
             double distToCenter = Math.hypot(proposedX - 0.0, proposedY - 0.0);
             double margin = 0.5;
-            if (distToCenter > islandRadius - margin) {
+            if (distToCenter > ISLAND_RADIUS - margin) {
                 double vecX = proposedX;
                 double vecY = proposedY;
                 double plen = Math.hypot(vecX, vecY);
                 if (plen == 0)
                     plen = 1;
-                double clampedX = (vecX / plen) * (islandRadius - margin);
-                double clampedY = (vecY / plen) * (islandRadius - margin);
+                double clampedX = (vecX / plen) * (ISLAND_RADIUS - margin);
+                double clampedY = (vecY / plen) * (ISLAND_RADIUS - margin);
                 // update
                 target.moveTo(new Position(clampedX, clampedY));
             } else {
@@ -126,14 +131,11 @@ public class GameController {
             double y = pos != null ? pos.getY() : 0.0;
 
             if (p.isInfiltrator()) {
-                // representado como NPC para TODOS (incluido el propio jugador infiltrado)
                 String dname = "NPC-" + p.getId();
-                AvatarState a = new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive(), dname);
-                avatars.add(a);
+                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(), dname));
             } else {
-                AvatarState a = new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
-                        p.getUsername());
-                avatars.add(a);
+                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
+                        p.getUsername()));
             }
         }
         for (Npc n : match.getNpcs()) {
@@ -143,7 +145,10 @@ public class GameController {
             AvatarState a = new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName());
             avatars.add(a);
         }
-        GameState.Island isl = new GameState.Island(0.0, 0.0, 100.0);
-        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars);
+        GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
+        GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
+        String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
+        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars,
+                match.getFuelPercentage(), status, boat);
     }
 }

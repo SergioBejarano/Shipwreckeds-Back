@@ -2,12 +2,16 @@ package com.arsw.shipwreckeds.controller;
 
 import com.arsw.shipwreckeds.model.Match;
 import com.arsw.shipwreckeds.model.Npc;
+import com.arsw.shipwreckeds.model.MatchStatus;
 import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.CreateMatchRequest;
 import com.arsw.shipwreckeds.model.dto.CreateMatchResponse;
 import com.arsw.shipwreckeds.model.dto.JoinMatchRequest;
 import com.arsw.shipwreckeds.model.dto.AvatarState;
+import com.arsw.shipwreckeds.model.dto.EliminationEvent;
+import com.arsw.shipwreckeds.model.dto.FuelActionRequest;
+import com.arsw.shipwreckeds.model.dto.FuelActionResponse;
 import com.arsw.shipwreckeds.model.dto.GameState;
 import com.arsw.shipwreckeds.model.dto.VoteAck;
 import com.arsw.shipwreckeds.model.dto.VoteRequest;
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Controlador que maneja creación y unión a partidas (lobbies).
@@ -32,6 +37,13 @@ import java.util.List;
 @RequestMapping("/api/match")
 @CrossOrigin(origins = "*")
 public class MatchController {
+    private static final double ISLAND_RADIUS = 100.0;
+    private static final double BOAT_X = ISLAND_RADIUS + 12.0;
+    private static final double BOAT_Y = 0.0;
+    private static final double BOAT_INTERACTION_RADIUS = 25.0;
+    private static final double FUEL_STEP = 5.0;
+    private static final double ELIMINATION_RANGE = 20.0;
+
     private final MatchService matchService;
     private final AuthService authService;
     private final WebSocketController webSocketController;
@@ -123,35 +135,14 @@ public class MatchController {
                 double x = Math.cos(ang) * r;
                 double y = Math.sin(ang) * r;
                 n.setPosition(new Position(x, y));
+                match.resetFuel();
             }
         }
 
         // broadcast final lobby and initial game state
         webSocketController.broadcastLobbyUpdate(match);
 
-        List<AvatarState> avatars = new ArrayList<>();
-        for (Player p : match.getPlayers()) {
-            Position pos = p.getPosition();
-            double x = pos != null ? pos.getX() : 0.0;
-            double y = pos != null ? pos.getY() : 0.0;
-            if (p.isInfiltrator()) {
-                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, false, p.isAlive(), "NPC-" + p.getId()));
-            } else {
-                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
-                        p.getUsername()));
-            }
-        }
-        for (Npc n : match.getNpcs()) {
-            Position pos = n.getPosition();
-            double x = pos != null ? pos.getX() : 0.0;
-            double y = pos != null ? pos.getY() : 0.0;
-            avatars.add(new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName()));
-        }
-
-        GameState.Island isl = new GameState.Island(0.0, 0.0, islandRadius);
-        GameState gs = new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl,
-                avatars);
-        webSocketController.broadcastGameState(match.getCode(), gs);
+        webSocketController.broadcastGameState(match.getCode(), buildGameStateForMatch(match));
 
         // start server-side countdown ticker for the match
         gameEngine.startMatchTicker(match);
@@ -312,7 +303,127 @@ public class MatchController {
             avatars.add(
                     new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(), n.getDisplayName()));
         }
-        GameState.Island isl = new GameState.Island(0.0, 0.0, 100.0);
-        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars);
+        GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
+        GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
+        String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
+        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars,
+                match.getFuelPercentage(), status, boat);
     }
+
+    @PostMapping("/{code}/eliminate")
+    public ResponseEntity<?> eliminate(@PathVariable String code, @RequestBody VoteRequest req) {
+        Match match = matchService.getMatchByCode(code);
+        if (match == null)
+            return ResponseEntity.badRequest().body("Partida no encontrada.");
+        if (match.getStatus() == null || !match.getStatus().name().equals("STARTED"))
+            return ResponseEntity.badRequest().body("La partida no está en curso.");
+        if (req.getUsername() == null || req.getTargetId() == null)
+            return ResponseEntity.badRequest().body("Solicitud inválida.");
+
+        Player killer = match.getPlayers().stream()
+                .filter(pl -> pl.getUsername().equals(req.getUsername()))
+                .findFirst().orElse(null);
+        if (killer == null || !killer.isAlive())
+            return ResponseEntity.status(403).body("Asesino no válido.");
+        if (!killer.isInfiltrator())
+            return ResponseEntity.status(403).body("Solo el infiltrado puede eliminar.");
+
+        Player target = match.getPlayers().stream()
+                .filter(pl -> pl.getId().equals(req.getTargetId()))
+                .findFirst().orElse(null);
+        if (target == null || !target.isAlive() || target.isInfiltrator())
+            return ResponseEntity.status(403).body("Objetivo inválido.");
+
+        Position killerPos = killer.getPosition();
+        Position targetPos = target.getPosition();
+        double dist = distance(killerPos, targetPos);
+        if (dist > ELIMINATION_RANGE)
+            return ResponseEntity.status(403).body("Fuera de rango para eliminar.");
+
+        synchronized (match) {
+            if (!target.isAlive())
+                return ResponseEntity.status(409).body("El objetivo ya está eliminado.");
+            target.setAlive(false);
+        }
+
+        EliminationEvent evt = new EliminationEvent(target.getId(), target.getUsername(), "Has sido eliminado.");
+        webSocketController.broadcastElimination(code, evt);
+        webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
+
+        return ResponseEntity.ok("Eliminación aplicada");
+    }
+
+    @PostMapping("/{code}/fuel")
+    public ResponseEntity<?> modifyFuel(@PathVariable String code, @RequestBody FuelActionRequest req) {
+        Match match = matchService.getMatchByCode(code);
+        if (match == null)
+            return ResponseEntity.badRequest().body("Partida no encontrada.");
+        if (match.getStatus() == null || !match.getStatus().name().equals("STARTED"))
+            return ResponseEntity.badRequest().body("La partida no está en curso.");
+        if (req.getUsername() == null || req.getAction() == null)
+            return ResponseEntity.badRequest().body("Solicitud inválida.");
+
+        Player actor = match.getPlayers().stream()
+                .filter(pl -> pl.getUsername().equals(req.getUsername()))
+                .findFirst().orElse(null);
+        if (actor == null || !actor.isAlive())
+            return ResponseEntity.status(403).body("Jugador no válido.");
+
+        double boatDist = computeDistanceToBoat(actor.getPosition());
+        if (boatDist > BOAT_INTERACTION_RADIUS)
+            return ResponseEntity.status(403).body("Debes acercarte al barco.");
+
+        double step = req.getAmount() != null ? req.getAmount() : FUEL_STEP;
+        double delta;
+        switch (req.getAction()) {
+            case FILL:
+                if (actor.isInfiltrator())
+                    return ResponseEntity.status(403).body("El infiltrado no puede llenar el tanque.");
+                delta = Math.abs(step);
+                break;
+            case SABOTAGE:
+                if (!actor.isInfiltrator())
+                    return ResponseEntity.status(403).body("Solo el infiltrado puede sabotear.");
+                delta = -Math.abs(step);
+                break;
+            default:
+                return ResponseEntity.badRequest().body("Acción desconocida.");
+        }
+
+        double updated;
+        boolean completed;
+        synchronized (match) {
+            if (match.getStatus() == MatchStatus.FINISHED)
+                return ResponseEntity.status(409).body("La partida ya terminó.");
+            double before = match.getFuelPercentage();
+            updated = match.adjustFuel(delta);
+            completed = updated >= 100.0 && before < 100.0;
+            if (completed) {
+                match.endMatch();
+                gameEngine.stopMatchTicker(code);
+            }
+        }
+
+        GameState state = buildGameStateForMatch(match);
+        webSocketController.broadcastGameState(code, state);
+
+        return ResponseEntity.ok(new FuelActionResponse(updated, match.getStatus() != null
+                ? match.getStatus().name().toLowerCase(Locale.ROOT)
+                : "unknown"));
+    }
+
+    private double computeDistanceToBoat(Position position) {
+        if (position == null)
+            return Double.MAX_VALUE;
+        return Math.hypot(position.getX() - BOAT_X, position.getY() - BOAT_Y);
+    }
+
+    private double distance(Position a, Position b) {
+        double ax = a != null ? a.getX() : 0.0;
+        double ay = a != null ? a.getY() : 0.0;
+        double bx = b != null ? b.getX() : 0.0;
+        double by = b != null ? b.getY() : 0.0;
+        return Math.hypot(ax - bx, ay - by);
+    }
+
 }

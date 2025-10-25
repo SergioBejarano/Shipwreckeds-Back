@@ -32,6 +32,7 @@ public class Match {
     private MatchStatus status;
     private int timerSeconds;
     private Player infiltrator;
+    private double fuelPercentage;
     // Voting state for expulsions
     private boolean votingActive;
     // username -> targetId (the id of the NPC or player voted)
@@ -52,6 +53,7 @@ public class Match {
         this.status = MatchStatus.WAITING;
         this.timerSeconds = 0;
         this.infiltrator = null;
+        this.fuelPercentage = 0.0;
     }
 
     /**
@@ -102,6 +104,16 @@ public class Match {
     public void endMatch() {
         this.status = MatchStatus.FINISHED;
         System.out.println("La partida ha terminado.");
+    }
+
+    public synchronized double adjustFuel(double delta) {
+        double updated = Math.max(0.0, Math.min(100.0, this.fuelPercentage + delta));
+        this.fuelPercentage = updated;
+        return updated;
+    }
+
+    public synchronized void resetFuel() {
+        this.fuelPercentage = 0.0;
     }
 
     // --- voting helpers ---

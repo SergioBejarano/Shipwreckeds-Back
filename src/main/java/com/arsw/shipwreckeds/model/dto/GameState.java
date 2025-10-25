@@ -17,6 +17,9 @@ public class GameState {
     private int timerSeconds;
     private Island island;
     private List<AvatarState> avatars;
+    private double fuelPercentage;
+    private String status;
+    private Boat boat;
 
     @Getter
     @Setter
@@ -26,5 +29,15 @@ public class GameState {
         private double cx;
         private double cy;
         private double radius;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Boat {
+        private double x;
+        private double y;
+        private double interactionRadius;
     }
 }

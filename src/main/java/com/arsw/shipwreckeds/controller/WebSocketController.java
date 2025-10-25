@@ -52,4 +52,14 @@ public class WebSocketController {
         String dest = "/topic/game/" + code + "/vote/result";
         messagingTemplate.convertAndSend(dest, result);
     }
+
+    /**
+     * Broadcast a player elimination event to /topic/game/{code}/elimination
+     */
+    public void broadcastElimination(String code, Object eliminationEvent) {
+        if (code == null)
+            return;
+        String dest = "/topic/game/" + code + "/elimination";
+        messagingTemplate.convertAndSend(dest, eliminationEvent);
+    }
 }
