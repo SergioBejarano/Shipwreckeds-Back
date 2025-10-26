@@ -139,6 +139,7 @@ public class GameController {
                         p.getUsername()));
             }
         }
+
         for (Npc n : match.getNpcs()) {
             Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
@@ -146,10 +147,26 @@ public class GameController {
             AvatarState a = new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName());
             avatars.add(a);
         }
+
         GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
         GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
         String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
-        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars,
-                match.getFuelPercentage(), status, boat);
+
+        // 🟩 Nuevo campo: mensaje de victoria (si lo hay)
+        String winnerMessage = match.getWinnerMessage(); // <-- asegúrate de que exista el getter en Match
+
+        return new GameState(
+                match.getCode(),
+                System.currentTimeMillis(),
+                match.getTimerSeconds(),
+                isl,
+                avatars,
+                match.getFuelPercentage(),
+                status,
+                boat,
+                winnerMessage // <-- nuevo parámetro
+        );
     }
+
+
 }

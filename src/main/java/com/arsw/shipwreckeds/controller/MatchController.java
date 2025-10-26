@@ -240,18 +240,24 @@ public class MatchController {
             Player expelledPlayer = match.getPlayers().stream().filter(pl -> pl.getId().equals(expelledId)).findFirst()
                     .orElse(null);
             if (expelledPlayer != null) {
-                // human expelled
+                // human expelled -> final match: náufragos ganan
                 expelledPlayer.setAlive(false);
                 match.stopVoting();
+
+                // <-- fijar mensaje de ganador antes de finalizar
+                match.setWinnerMessage("¡El infiltrado ha sido identificado y eliminado! Los náufragos ganan");
+
                 match.endMatch();
                 gameEngine.stopMatchTicker(match.getCode());
+
                 VoteResult vr = new VoteResult(counts, expelledId, "human",
-                        "Se ha expulsado al jugador humano. Naufragos ganan.");
+                        "Se ha expulsado al jugador humano. Náufragos ganan.");
                 webSocketController.broadcastVoteResult(code, vr);
-                // broadcast final game state
+                // broadcast final game state con winnerMessage
                 webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
                 return ResponseEntity.ok(ack);
             }
+
 
             // otherwise try NPC
             Npc expelledNpc = match.getNpcs().stream().filter(n -> n.getId().equals(expelledId)).findFirst()
@@ -307,8 +313,18 @@ public class MatchController {
         GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
         GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
         String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
-        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars,
-                match.getFuelPercentage(), status, boat);
+        return new GameState(
+                match.getCode(),
+                System.currentTimeMillis(),
+                match.getTimerSeconds(),
+                isl,
+                avatars,
+                match.getFuelPercentage(),
+                status,
+                boat,
+                match.getWinnerMessage()
+        );
+
     }
 
     @PostMapping("/{code}/eliminate")
@@ -345,14 +361,26 @@ public class MatchController {
             if (!target.isAlive())
                 return ResponseEntity.status(409).body("El objetivo ya está eliminado.");
             target.setAlive(false);
+
+            // <-- comprobar si quedan náufragos vivos
+            boolean anyHumanAlive = match.getPlayers().stream()
+                    .anyMatch(p -> !p.isInfiltrator() && p.isAlive());
+            if (!anyHumanAlive) {
+                // el infiltrado eliminó a todos los náufragos -> gana el infiltrado
+                match.setWinnerMessage("¡El infiltrado ha ganado eliminando a todos los náufragos!");
+                match.endMatch();
+                gameEngine.stopMatchTicker(code);
+            }
         }
 
         EliminationEvent evt = new EliminationEvent(target.getId(), target.getUsername(), "Has sido eliminado.");
         webSocketController.broadcastElimination(code, evt);
+        // broadcast game state que incluirá el winnerMessage si se finalizó la partida
         webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
 
         return ResponseEntity.ok("Eliminación aplicada");
     }
+
 
     @PostMapping("/{code}/fuel")
     public ResponseEntity<?> modifyFuel(@PathVariable String code, @RequestBody FuelActionRequest req) {
@@ -400,18 +428,23 @@ public class MatchController {
             updated = match.adjustFuel(delta);
             completed = updated >= 100.0 && before < 100.0;
             if (completed) {
+                // <-- fijar el winnerMessage antes de finalizar
+                match.setWinnerMessage("¡El barco ha sido reparado a tiempo! Los náufragos escapan con éxito");
                 match.endMatch();
                 gameEngine.stopMatchTicker(code);
             }
         }
 
         GameState state = buildGameStateForMatch(match);
+
+        // broadcast final state (incluye winnerMessage)
         webSocketController.broadcastGameState(code, state);
 
         return ResponseEntity.ok(new FuelActionResponse(updated, match.getStatus() != null
                 ? match.getStatus().name().toLowerCase(Locale.ROOT)
                 : "unknown"));
     }
+
 
     private double computeDistanceToBoat(Position position) {
         if (position == null)

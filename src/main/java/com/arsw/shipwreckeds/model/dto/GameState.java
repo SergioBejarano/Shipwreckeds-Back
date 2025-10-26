@@ -20,6 +20,10 @@ public class GameState {
     private double fuelPercentage;
     private String status;
     private Boat boat;
+    
+
+    // NUEVO campo para comunicar el mensaje final al frontend
+    private String winnerMessage;
 
     @Getter
     @Setter

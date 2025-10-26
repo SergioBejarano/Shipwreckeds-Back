@@ -9,21 +9,13 @@ import lombok.Setter;
 
 /**
  * Clase que representa una partida (Match) dentro del juego.
- * 
- * Una partida contiene la lista de jugadores, NPCs, tareas activas,
- * el estado actual del juego y el tiempo restante.
- * Además, controla la lógica de inicio, asignación del infiltrado,
- * conteo del tiempo y finalización del juego.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * ...
+ * @version 26/10/2025
  */
-
 @Getter
 @Setter
 public class Match {
 
-    // Atributos principales
     private Long id;
     private String code;
     private List<Player> players;
@@ -33,17 +25,12 @@ public class Match {
     private int timerSeconds;
     private Player infiltrator;
     private double fuelPercentage;
-    // Voting state for expulsions
     private boolean votingActive;
-    // username -> targetId (the id of the NPC or player voted)
     private java.util.Map<String, Long> votesByPlayer;
 
-    /**
-     * Constructor principal para crear una nueva partida.
-     * 
-     * @param id   identificador único de la partida
-     * @param code código que los jugadores usan para unirse
-     */
+    // --- Nuevo campo para comunicar el mensaje final a clientes ---
+    private String winnerMessage;
+
     public Match(Long id, String code) {
         this.id = id;
         this.code = code;
@@ -54,30 +41,22 @@ public class Match {
         this.timerSeconds = 0;
         this.infiltrator = null;
         this.fuelPercentage = 0.0;
+        this.winnerMessage = null;
     }
 
-    /**
-     * Inicia la partida una vez que todos los jugadores están listos.
-     * Se asigna el infiltrado y se activa el temporizador.
-     */
     public void startMatch() {
         if (players.size() < 5) {
-            System.out
-                    .println("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
+            System.out.println("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
             return;
         }
         this.status = MatchStatus.STARTED;
-        this.timerSeconds = 15 * 60; // 15 minutos
+        this.timerSeconds = 1 * 60;
+        this.winnerMessage = null;
         System.out.println("La partida ha comenzado. Tiempo restante: " + timerSeconds + " segundos.");
     }
 
-    /**
-     * Asigna aleatoriamente un jugador como el infiltrado.
-     */
     public void assignInfiltrator() {
-        if (players.isEmpty())
-            return;
-
+        if (players.isEmpty()) return;
         Random random = new Random();
         int index = random.nextInt(players.size());
         infiltrator = players.get(index);
@@ -89,11 +68,44 @@ public class Match {
      * Reduce el temporizador de la partida y controla el fin del juego.
      */
     public void tickTimer() {
-        if (status != MatchStatus.STARTED)
-            return;
+        if (status != MatchStatus.STARTED) return;
 
         timerSeconds--;
         if (timerSeconds <= 0) {
+            checkVictoryByTime();
+        }
+    }
+
+    /**
+     * Condición de victoria por tiempo:
+     * Si el tiempo llega a cero, el infiltrado sigue vivo y el barco (fuel) no está 100%,
+     * el infiltrado gana. Si el barco está 100% gana náufragos. Si el infiltrado ya estaba muerto,
+     * gana el equipo de náufragos.
+     */
+    private void checkVictoryByTime() {
+        boolean infiltradoVivo = infiltrator != null && infiltrator.isAlive();
+        boolean barcoNoReparado = this.fuelPercentage < 100.0;
+
+        if (infiltradoVivo && barcoNoReparado) {
+            this.winnerMessage = "El infiltrado ha ganado — los náufragos no lograron reparar el barco a tiempo";
+            endMatch();
+            return;
+        }
+
+        // Si el barco llegó a 100 justo a tiempo => náufragos ganan
+        if (this.fuelPercentage >= 100.0) {
+            this.winnerMessage = "¡El barco ha sido reparado a tiempo! Los náufragos escapan con éxito";
+            endMatch();
+            return;
+        }
+
+        // Si infiltrado no está vivo y el barco no está reparado -> igualmente gana náufragos
+        if (!infiltradoVivo) {
+            this.winnerMessage = "El infiltrado fue eliminado antes de que se agotara el tiempo. Los náufragos ganan.";
+            endMatch();
+        } else {
+            // por defecto, si alguna otra condición (seguridad)
+            this.winnerMessage = "Partida finalizada";
             endMatch();
         }
     }
@@ -104,8 +116,12 @@ public class Match {
     public void endMatch() {
         this.status = MatchStatus.FINISHED;
         System.out.println("La partida ha terminado.");
+        if (this.winnerMessage != null) {
+            System.out.println(this.winnerMessage);
+        }
     }
 
+    // --- resto de métodos sin cambios ---
     public synchronized double adjustFuel(double delta) {
         double updated = Math.max(0.0, Math.min(100.0, this.fuelPercentage + delta));
         this.fuelPercentage = updated;
@@ -116,7 +132,6 @@ public class Match {
         this.fuelPercentage = 0.0;
     }
 
-    // --- voting helpers ---
     public boolean isVotingActive() {
         return votingActive;
     }
@@ -146,7 +161,6 @@ public class Match {
     }
 
     public int countHumanAlivePlayers() {
-        // count only alive players who are NOT the infiltrator (only survivors vote)
         return (int) this.players.stream().filter(p -> p.isAlive() && !p.isInfiltrator()).count();
     }
 
@@ -154,11 +168,6 @@ public class Match {
         return this.votesByPlayer != null && this.votesByPlayer.size() >= countHumanAlivePlayers();
     }
 
-    /**
-     * Inicia una reunión solicitada por un jugador.
-     * 
-     * @param by jugador que convoca la reunión
-     */
     public void triggerMeeting(Player by) {
         if (status != MatchStatus.STARTED) {
             System.out.println("No se puede convocar una reunión en este momento.");
@@ -167,14 +176,8 @@ public class Match {
 
         System.out.println("El jugador " + by.getUsername() + " convocó una reunión.");
         this.status = MatchStatus.STARTED;
-        // Aquí se activaría el chat y la votación en el flujo del juego
     }
 
-    /**
-     * Agrega un nuevo jugador a la partida.
-     * 
-     * @param player jugador que se une
-     */
     public void addPlayer(Player player) {
         if (status != MatchStatus.WAITING) {
             System.out.println("No se pueden unir más jugadores, la partida ya ha comenzado.");
@@ -184,20 +187,10 @@ public class Match {
         System.out.println("Jugador " + player.getUsername() + " se unió a la partida con código " + code + ".");
     }
 
-    /**
-     * Agrega un NPC a la partida.
-     * 
-     * @param npc personaje no jugador que será agregado
-     */
     public void addNpc(Npc npc) {
         npcs.add(npc);
     }
 
-    /**
-     * Agrega una tarea al entorno de la partida.
-     * 
-     * @param task tarea que se agregará
-     */
     public void addTask(Task task) {
         tasks.add(task);
     }

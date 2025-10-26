@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class GameEngine {
@@ -105,8 +104,17 @@ public class GameEngine {
         GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
         GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
         String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
-        return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars,
-                match.getFuelPercentage(), status, boat);
+        return new GameState(
+                match.getCode(),
+                System.currentTimeMillis(),
+                match.getTimerSeconds(),
+                isl,
+                avatars,
+                match.getFuelPercentage(),
+                status,
+                boat,
+                match.getWinnerMessage() 
+        );
     }
 
     private void updateNpcMovement(Match match, double deltaSeconds) {
