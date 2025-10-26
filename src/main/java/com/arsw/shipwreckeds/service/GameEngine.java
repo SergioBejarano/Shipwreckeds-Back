@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class GameEngine {
@@ -22,7 +23,9 @@ public class GameEngine {
     private static final double ISLAND_RADIUS = 100.0;
     private static final double BOAT_X = ISLAND_RADIUS + 12.0;
     private static final double BOAT_Y = 0.0;
-    private static final double BOAT_INTERACTION_RADIUS = 25.0;
+    private static final double BOAT_INTERACTION_RADIUS = 40.0;
+    private static final long NPC_ALIAS_OFFSET = 100000L;
+    private static final double NPC_SPEED_MULTIPLIER = 3.0;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "game-engine");
@@ -31,6 +34,7 @@ public class GameEngine {
     });
 
     private final Map<String, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
+    private final Map<String, Map<Long, Position>> npcTargetsByMatch = new ConcurrentHashMap<>();
     private final WebSocketController ws;
 
     public GameEngine(WebSocketController ws) {
@@ -42,6 +46,7 @@ public class GameEngine {
             return;
         String code = match.getCode();
         stopMatchTicker(code);
+        npcTargetsByMatch.remove(code);
 
         Runnable tick = () -> {
             synchronized (match) {
@@ -54,6 +59,7 @@ public class GameEngine {
                         stopMatchTicker(code);
                         return;
                     }
+                    updateNpcMovement(match, 1.0);
                     match.setTimerSeconds(t - 1);
                     // broadcast updated GameState with new timer
                     ws.broadcastGameState(code, buildGameState(match));
@@ -72,6 +78,7 @@ public class GameEngine {
         ScheduledFuture<?> f = tasks.remove(code);
         if (f != null)
             f.cancel(false);
+        npcTargetsByMatch.remove(code);
     }
 
     private GameState buildGameState(Match match) {
@@ -81,7 +88,8 @@ public class GameEngine {
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
             if (p.isInfiltrator()) {
-                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(), "NPC-" + p.getId()));
+                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(),
+                        aliasForInfiltrator(p.getId())));
             } else {
                 avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
                         p.getUsername()));
@@ -99,6 +107,63 @@ public class GameEngine {
         String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
         return new GameState(match.getCode(), System.currentTimeMillis(), match.getTimerSeconds(), isl, avatars,
                 match.getFuelPercentage(), status, boat);
+    }
+
+    private void updateNpcMovement(Match match, double deltaSeconds) {
+        Map<Long, Position> targets = npcTargetsByMatch.computeIfAbsent(match.getCode(),
+                k -> new ConcurrentHashMap<>());
+        for (Npc npc : match.getNpcs()) {
+            if (!npc.isActive()) {
+                targets.remove(npc.getId());
+                continue;
+            }
+            Position position = npc.getPosition();
+            if (position == null) {
+                position = new Position(0.0, 0.0);
+                npc.setPosition(position);
+            }
+
+            Position target = targets.computeIfAbsent(npc.getId(), id -> randomIslandPoint());
+            double dx = target.getX() - position.getX();
+            double dy = target.getY() - position.getY();
+            double distance = Math.hypot(dx, dy);
+
+            if (distance < 1.0) {
+                targets.put(npc.getId(), randomIslandPoint());
+                continue;
+            }
+
+            double baseSpeed = Math.min(Math.max(0.15, npc.getMovementSpeed()), 0.55);
+            double step = Math.min(distance, baseSpeed * NPC_SPEED_MULTIPLIER * deltaSeconds);
+            double nx = position.getX() + (dx / distance) * step;
+            double ny = position.getY() + (dy / distance) * step;
+
+            double distFromCenter = Math.hypot(nx, ny);
+            if (distFromCenter >= ISLAND_RADIUS - 2.0) {
+                targets.put(npc.getId(), randomIslandPoint());
+                continue;
+            }
+
+            position.setX(nx);
+            position.setY(ny);
+        }
+    }
+
+    private Position randomIslandPoint() {
+        double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
+        double radius = ThreadLocalRandom.current().nextDouble(0, ISLAND_RADIUS * 0.9);
+        double x = Math.cos(angle) * radius;
+        double y = Math.sin(angle) * radius;
+        return new Position(x, y);
+    }
+
+    public static String buildNpcAlias(long baseId) {
+        return "NPC-" + (NPC_ALIAS_OFFSET + baseId);
+    }
+
+    private String aliasForInfiltrator(Long playerId) {
+        long id = playerId != null ? playerId : 0L;
+        return buildNpcAlias(id);
     }
 
     @PreDestroy

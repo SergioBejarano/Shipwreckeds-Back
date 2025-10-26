@@ -9,6 +9,7 @@ import com.arsw.shipwreckeds.model.dto.AvatarState;
 import com.arsw.shipwreckeds.model.dto.GameState;
 import com.arsw.shipwreckeds.model.dto.MoveCommand;
 import com.arsw.shipwreckeds.service.AuthService;
+import com.arsw.shipwreckeds.service.GameEngine;
 import com.arsw.shipwreckeds.service.MatchService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -29,7 +30,7 @@ public class GameController {
     private static final double ISLAND_RADIUS = 100.0;
     private static final double BOAT_X = ISLAND_RADIUS + 12.0;
     private static final double BOAT_Y = 0.0;
-    private static final double BOAT_INTERACTION_RADIUS = 25.0;
+    private static final double BOAT_INTERACTION_RADIUS = 40.0;
 
     private final MatchService matchService;
     private final AuthService authService;
@@ -131,7 +132,7 @@ public class GameController {
             double y = pos != null ? pos.getY() : 0.0;
 
             if (p.isInfiltrator()) {
-                String dname = "NPC-" + p.getId();
+                String dname = GameEngine.buildNpcAlias(p.getId());
                 avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(), dname));
             } else {
                 avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),

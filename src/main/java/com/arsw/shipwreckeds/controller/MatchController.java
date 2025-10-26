@@ -40,7 +40,7 @@ public class MatchController {
     private static final double ISLAND_RADIUS = 100.0;
     private static final double BOAT_X = ISLAND_RADIUS + 12.0;
     private static final double BOAT_Y = 0.0;
-    private static final double BOAT_INTERACTION_RADIUS = 25.0;
+    private static final double BOAT_INTERACTION_RADIUS = 40.0;
     private static final double FUEL_STEP = 5.0;
     private static final double ELIMINATION_RANGE = 20.0;
 
@@ -187,7 +187,8 @@ public class MatchController {
                 double x = pos != null ? pos.getX() : 0.0;
                 double y = pos != null ? pos.getY() : 0.0;
                 // represent as npc in options (no ownerUsername)
-                options.add(new AvatarState(pl.getId(), "npc", null, x, y, true, pl.isAlive(), "NPC-" + pl.getId()));
+                options.add(new AvatarState(pl.getId(), "npc", null, x, y, true, pl.isAlive(),
+                        GameEngine.buildNpcAlias(pl.getId())));
             }
         }
 
@@ -293,7 +294,7 @@ public class MatchController {
             double y = pos != null ? pos.getY() : 0.0;
             String type = p.isInfiltrator() ? "npc" : "human";
             String owner = p.isInfiltrator() ? null : p.getUsername();
-            String dname = p.isInfiltrator() ? "NPC-" + p.getId() : p.getUsername();
+            String dname = p.isInfiltrator() ? GameEngine.buildNpcAlias(p.getId()) : p.getUsername();
             avatars.add(new AvatarState(p.getId(), type, owner, x, y, p.isInfiltrator(), p.isAlive(), dname));
         }
         for (Npc n : match.getNpcs()) {
