@@ -164,9 +164,9 @@ public class GameController {
                 match.getFuelPercentage(),
                 status,
                 boat,
-                winnerMessage // <-- nuevo parámetro
-        );
+                winnerMessage,
+                match.isFuelWindowOpenNow(),
+                match.getFuelWindowSecondsRemaining());
     }
-
 
 }

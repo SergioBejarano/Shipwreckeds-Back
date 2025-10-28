@@ -10,11 +10,16 @@ import lombok.Setter;
 /**
  * Clase que representa una partida (Match) dentro del juego.
  * ...
+ * 
  * @version 26/10/2025
  */
 @Getter
 @Setter
 public class Match {
+
+    public static final int MATCH_DURATION_SECONDS = 4 * 60;
+    public static final int FUEL_WINDOW_CYCLE_SECONDS = 60;
+    public static final int VOTE_DURATION_SECONDS = 20;
 
     private Long id;
     private String code;
@@ -27,6 +32,7 @@ public class Match {
     private double fuelPercentage;
     private boolean votingActive;
     private java.util.Map<String, Long> votesByPlayer;
+    private long voteStartEpochMs;
 
     // --- Nuevo campo para comunicar el mensaje final a clientes ---
     private String winnerMessage;
@@ -42,21 +48,24 @@ public class Match {
         this.infiltrator = null;
         this.fuelPercentage = 0.0;
         this.winnerMessage = null;
+        this.voteStartEpochMs = 0L;
     }
 
     public void startMatch() {
         if (players.size() < 5) {
-            System.out.println("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
+            System.out
+                    .println("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
             return;
         }
         this.status = MatchStatus.STARTED;
-        this.timerSeconds = 1 * 60;
+        this.timerSeconds = MATCH_DURATION_SECONDS;
         this.winnerMessage = null;
         System.out.println("La partida ha comenzado. Tiempo restante: " + timerSeconds + " segundos.");
     }
 
     public void assignInfiltrator() {
-        if (players.isEmpty()) return;
+        if (players.isEmpty())
+            return;
         Random random = new Random();
         int index = random.nextInt(players.size());
         infiltrator = players.get(index);
@@ -68,7 +77,8 @@ public class Match {
      * Reduce el temporizador de la partida y controla el fin del juego.
      */
     public void tickTimer() {
-        if (status != MatchStatus.STARTED) return;
+        if (status != MatchStatus.STARTED)
+            return;
 
         timerSeconds--;
         if (timerSeconds <= 0) {
@@ -78,8 +88,10 @@ public class Match {
 
     /**
      * Condición de victoria por tiempo:
-     * Si el tiempo llega a cero, el infiltrado sigue vivo y el barco (fuel) no está 100%,
-     * el infiltrado gana. Si el barco está 100% gana náufragos. Si el infiltrado ya estaba muerto,
+     * Si el tiempo llega a cero, el infiltrado sigue vivo y el barco (fuel) no está
+     * 100%,
+     * el infiltrado gana. Si el barco está 100% gana náufragos. Si el infiltrado ya
+     * estaba muerto,
      * gana el equipo de náufragos.
      */
     private void checkVictoryByTime() {
@@ -99,7 +111,8 @@ public class Match {
             return;
         }
 
-        // Si infiltrado no está vivo y el barco no está reparado -> igualmente gana náufragos
+        // Si infiltrado no está vivo y el barco no está reparado -> igualmente gana
+        // náufragos
         if (!infiltradoVivo) {
             this.winnerMessage = "El infiltrado fue eliminado antes de que se agotara el tiempo. Los náufragos ganan.";
             endMatch();
@@ -132,6 +145,37 @@ public class Match {
         this.fuelPercentage = 0.0;
     }
 
+    public synchronized boolean isFuelWindowOpenNow() {
+        if (status != MatchStatus.STARTED || timerSeconds <= 0) {
+            return false;
+        }
+        int elapsed = MATCH_DURATION_SECONDS - timerSeconds;
+        if (elapsed < 0) {
+            elapsed = 0;
+        }
+        int windowIndex = elapsed / FUEL_WINDOW_CYCLE_SECONDS;
+        return windowIndex % 2 == 1;
+    }
+
+    public synchronized int getFuelWindowSecondsRemaining() {
+        if (status != MatchStatus.STARTED || timerSeconds <= 0) {
+            return 0;
+        }
+        int elapsed = MATCH_DURATION_SECONDS - timerSeconds;
+        if (elapsed < 0) {
+            elapsed = 0;
+        }
+        int remainder = elapsed % FUEL_WINDOW_CYCLE_SECONDS;
+        int remaining = FUEL_WINDOW_CYCLE_SECONDS - remainder;
+        if (remaining <= 0) {
+            remaining = FUEL_WINDOW_CYCLE_SECONDS;
+        }
+        if (timerSeconds < remaining) {
+            remaining = timerSeconds;
+        }
+        return Math.max(0, remaining);
+    }
+
     public boolean isVotingActive() {
         return votingActive;
     }
@@ -141,11 +185,13 @@ public class Match {
         if (this.votesByPlayer == null)
             this.votesByPlayer = new java.util.concurrent.ConcurrentHashMap<>();
         this.votesByPlayer.clear();
+        this.voteStartEpochMs = System.currentTimeMillis();
         System.out.println("Votación iniciada para partida " + this.code);
     }
 
     public void stopVoting() {
         this.votingActive = false;
+        this.voteStartEpochMs = 0L;
     }
 
     public void recordVote(String username, Long targetId) {

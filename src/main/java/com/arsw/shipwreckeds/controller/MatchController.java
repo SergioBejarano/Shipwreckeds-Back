@@ -193,10 +193,13 @@ public class MatchController {
         }
 
         match.startVoting();
+        gameEngine.scheduleVoteTimeout(match, () -> concludeVote(match, code, true));
         // broadcast game state (infiltrators must be represented as NPCs with no
         // ownerUsername)
         webSocketController.broadcastGameState(match.getCode(), buildGameStateForMatch(match));
-        VoteStart vs = new VoteStart(options, "Iniciar votación: elige un NPC para expulsar");
+        VoteStart vs = new VoteStart(options,
+                "Iniciar votación: elige un NPC para expulsar",
+                Match.VOTE_DURATION_SECONDS);
         webSocketController.broadcastVoteStart(code, vs);
         return ResponseEntity.ok("Votación iniciada");
     }
@@ -225,59 +228,7 @@ public class MatchController {
 
         // if all humans have voted, compute results
         if (match.allHumansVoted()) {
-            java.util.Map<Long, Integer> counts = new java.util.HashMap<>();
-            for (Long tid : match.getVotesByPlayer().values()) {
-                counts.put(tid, counts.getOrDefault(tid, 0) + 1);
-            }
-
-            // find id with maximum votes
-            Long expelledId = counts.entrySet().stream()
-                    .max(java.util.Comparator.comparingInt(java.util.Map.Entry::getValue))
-                    .map(java.util.Map.Entry::getKey)
-                    .orElse(null);
-
-            // determine if expelled is player or npc
-            Player expelledPlayer = match.getPlayers().stream().filter(pl -> pl.getId().equals(expelledId)).findFirst()
-                    .orElse(null);
-            if (expelledPlayer != null) {
-                // human expelled -> final match: náufragos ganan
-                expelledPlayer.setAlive(false);
-                match.stopVoting();
-
-                // <-- fijar mensaje de ganador antes de finalizar
-                match.setWinnerMessage("¡El infiltrado ha sido identificado y eliminado! Los náufragos ganan");
-
-                match.endMatch();
-                gameEngine.stopMatchTicker(match.getCode());
-
-                VoteResult vr = new VoteResult(counts, expelledId, "human",
-                        "Se ha expulsado al jugador humano. Náufragos ganan.");
-                webSocketController.broadcastVoteResult(code, vr);
-                // broadcast final game state con winnerMessage
-                webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
-                return ResponseEntity.ok(ack);
-            }
-
-
-            // otherwise try NPC
-            Npc expelledNpc = match.getNpcs().stream().filter(n -> n.getId().equals(expelledId)).findFirst()
-                    .orElse(null);
-            if (expelledNpc != null) {
-                // remove NPC
-                expelledNpc.deactivate();
-                match.getNpcs().removeIf(n -> n.getId().equals(expelledId));
-                match.stopVoting();
-                VoteResult vr = new VoteResult(counts, expelledId, "npc", "Se ha expulsado jugador NPC.");
-                webSocketController.broadcastVoteResult(code, vr);
-                // broadcast updated game state
-                webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
-                return ResponseEntity.ok(ack);
-            }
-
-            // fallback: no matching target
-            match.stopVoting();
-            VoteResult vr = new VoteResult(counts, null, "none", "No se encontró objetivo expulsable.");
-            webSocketController.broadcastVoteResult(code, vr);
+            concludeVote(match, code, false);
         }
 
         return ResponseEntity.ok(ack);
@@ -322,9 +273,134 @@ public class MatchController {
                 match.getFuelPercentage(),
                 status,
                 boat,
-                match.getWinnerMessage()
-        );
+                match.getWinnerMessage(),
+                match.isFuelWindowOpenNow(),
+                match.getFuelWindowSecondsRemaining());
 
+    }
+
+    private void concludeVote(Match match, String code, boolean dueToTimeout) {
+        synchronized (match) {
+            if (!match.isVotingActive()) {
+                return;
+            }
+
+            gameEngine.cancelVoteTimeout(code);
+
+            java.util.Map<Long, Integer> counts = new java.util.LinkedHashMap<>();
+            if (match.getVotesByPlayer() != null) {
+                for (Long tid : match.getVotesByPlayer().values()) {
+                    if (tid == null) {
+                        continue;
+                    }
+                    counts.put(tid, counts.getOrDefault(tid, 0) + 1);
+                }
+            }
+
+            int totalVotes = 0;
+            for (java.util.Map.Entry<Long, Integer> entry : counts.entrySet()) {
+                Long targetId = entry.getKey();
+                Integer value = entry.getValue();
+                if (targetId != null && targetId >= 0 && value != null) {
+                    totalVotes += value;
+                }
+            }
+            int majorityThreshold = Math.max(1, (totalVotes + 1) / 2);
+
+            Long leadingId = null;
+            int leadingVotes = 0;
+            boolean tie = false;
+
+            for (java.util.Map.Entry<Long, Integer> entry : counts.entrySet()) {
+                Long targetId = entry.getKey();
+                if (targetId == null || targetId < 0) {
+                    continue;
+                }
+                int votes = entry.getValue();
+                if (votes > leadingVotes) {
+                    leadingVotes = votes;
+                    leadingId = targetId;
+                    tie = false;
+                } else if (votes == leadingVotes && votes > 0 && !java.util.Objects.equals(leadingId, targetId)) {
+                    tie = true;
+                }
+            }
+
+            if (!tie && leadingId != null && leadingVotes >= majorityThreshold) {
+                Player expelledPlayer = null;
+                for (Player candidate : match.getPlayers()) {
+                    if (candidate.getId().equals(leadingId)) {
+                        expelledPlayer = candidate;
+                        break;
+                    }
+                }
+                if (expelledPlayer != null) {
+                    expelledPlayer.setAlive(false);
+                    match.stopVoting();
+                    match.getVotesByPlayer().clear();
+
+                    VoteResult result;
+                    if (expelledPlayer.isInfiltrator()) {
+                        match.setWinnerMessage("¡El infiltrado ha sido identificado y eliminado! Los náufragos ganan");
+                        match.endMatch();
+                        gameEngine.stopMatchTicker(code);
+                        result = new VoteResult(counts, leadingId, "human",
+                                "El infiltrado fue expulsado por mayoría. Los náufragos ganan.");
+                    } else {
+                        result = new VoteResult(counts, leadingId, "human",
+                                "Un jugador humano fue expulsado por mayoría.");
+                    }
+
+                    webSocketController.broadcastVoteResult(code, result);
+                    webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
+                    return;
+                }
+
+                Npc expelledNpc = null;
+                for (Npc npc : new ArrayList<>(match.getNpcs())) {
+                    if (npc.getId().equals(leadingId)) {
+                        expelledNpc = npc;
+                        break;
+                    }
+                }
+                if (expelledNpc != null) {
+                    expelledNpc.deactivate();
+                    match.getNpcs().remove(expelledNpc);
+                    match.stopVoting();
+                    match.getVotesByPlayer().clear();
+
+                    boolean infiltratorNpcVictory = checkNpcOnlyInfiltratorLeft(match, code);
+
+                    String resultMessage = infiltratorNpcVictory
+                            ? "Se expulsó un NPC por mayoría. El infiltrado ha ganado, todos los demás NPC han sido eliminados."
+                            : "Se expulsó un NPC por mayoría.";
+
+                    VoteResult result = new VoteResult(counts, leadingId, "npc",
+                            resultMessage);
+                    webSocketController.broadcastVoteResult(code, result);
+                    webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
+                    return;
+                }
+            }
+
+            match.stopVoting();
+            if (match.getVotesByPlayer() != null) {
+                match.getVotesByPlayer().clear();
+            }
+
+            String message;
+            if (counts.isEmpty()) {
+                message = dueToTimeout ? "La votación terminó sin votos. Nadie fue expulsado."
+                        : "Nadie votó. Nadie fue expulsado.";
+            } else {
+                message = dueToTimeout ? "La votación terminó sin mayoría. Nadie fue expulsado."
+                        : "No hubo mayoría. Nadie fue expulsado.";
+            }
+
+            VoteResult result = new VoteResult(counts, null, "none", message);
+            webSocketController.broadcastVoteResult(code, result);
+            webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
+        }
     }
 
     @PostMapping("/{code}/eliminate")
@@ -381,7 +457,6 @@ public class MatchController {
         return ResponseEntity.ok("Eliminación aplicada");
     }
 
-
     @PostMapping("/{code}/fuel")
     public ResponseEntity<?> modifyFuel(@PathVariable String code, @RequestBody FuelActionRequest req) {
         Match match = matchService.getMatchByCode(code);
@@ -399,8 +474,18 @@ public class MatchController {
             return ResponseEntity.status(403).body("Jugador no válido.");
 
         double boatDist = computeDistanceToBoat(actor.getPosition());
-        if (boatDist > BOAT_INTERACTION_RADIUS)
+        boolean requiresProximity = !actor.isInfiltrator();
+        if (requiresProximity && boatDist > BOAT_INTERACTION_RADIUS)
             return ResponseEntity.status(403).body("Debes acercarte al barco.");
+
+        if (!match.isFuelWindowOpenNow()) {
+            int seconds = match.getFuelWindowSecondsRemaining();
+            String msg = "Tanque de gasolina bloqueado temporalmente.";
+            if (seconds > 0) {
+                msg += " Disponible en " + seconds + "s.";
+            }
+            return ResponseEntity.status(423).body(msg);
+        }
 
         double step = req.getAmount() != null ? req.getAmount() : FUEL_STEP;
         double delta;
@@ -445,11 +530,35 @@ public class MatchController {
                 : "unknown"));
     }
 
-
     private double computeDistanceToBoat(Position position) {
         if (position == null)
             return Double.MAX_VALUE;
         return Math.hypot(position.getX() - BOAT_X, position.getY() - BOAT_Y);
+    }
+
+    private boolean checkNpcOnlyInfiltratorLeft(Match match, String code) {
+        Player infiltrator = match.getInfiltrator();
+        boolean infiltratorAlive = infiltrator != null && infiltrator.isAlive();
+        if (!infiltratorAlive) {
+            return false;
+        }
+
+        boolean anyActiveNpc = false;
+        for (Npc npc : match.getNpcs()) {
+            if (npc.isActive()) {
+                anyActiveNpc = true;
+                break;
+            }
+        }
+
+        if (!anyActiveNpc) {
+            match.setWinnerMessage("El infiltrado ha ganado, todos los demás NPC han sido eliminados");
+            match.endMatch();
+            gameEngine.stopMatchTicker(code);
+            return true;
+        }
+
+        return false;
     }
 
     private double distance(Position a, Position b) {

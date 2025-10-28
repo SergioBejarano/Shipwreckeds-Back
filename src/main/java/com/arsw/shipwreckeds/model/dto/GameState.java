@@ -21,6 +21,8 @@ public class GameState {
     private String status;
     private Boat boat;
     private String winnerMessage;
+    private boolean fuelWindowOpen;
+    private int fuelWindowSecondsRemaining;
 
     @Getter
     @Setter

@@ -33,6 +33,7 @@ public class GameEngine {
     });
 
     private final Map<String, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
+    private final Map<String, ScheduledFuture<?>> voteTimers = new ConcurrentHashMap<>();
     private final Map<String, Map<Long, Position>> npcTargetsByMatch = new ConcurrentHashMap<>();
     private final WebSocketController ws;
 
@@ -80,6 +81,27 @@ public class GameEngine {
         npcTargetsByMatch.remove(code);
     }
 
+    public void scheduleVoteTimeout(Match match, Runnable callback) {
+        if (match == null) {
+            return;
+        }
+        String code = match.getCode();
+        cancelVoteTimeout(code);
+        ScheduledFuture<?> future = scheduler.schedule(() -> {
+            synchronized (match) {
+                callback.run();
+            }
+        }, Match.VOTE_DURATION_SECONDS, TimeUnit.SECONDS);
+        voteTimers.put(code, future);
+    }
+
+    public void cancelVoteTimeout(String code) {
+        ScheduledFuture<?> future = voteTimers.remove(code);
+        if (future != null) {
+            future.cancel(false);
+        }
+    }
+
     private GameState buildGameState(Match match) {
         List<AvatarState> avatars = new ArrayList<>();
         for (Player p : match.getPlayers()) {
@@ -113,8 +135,9 @@ public class GameEngine {
                 match.getFuelPercentage(),
                 status,
                 boat,
-                match.getWinnerMessage() 
-        );
+                match.getWinnerMessage(),
+                match.isFuelWindowOpenNow(),
+                match.getFuelWindowSecondsRemaining());
     }
 
     private void updateNpcMovement(Match match, double deltaSeconds) {
@@ -177,6 +200,8 @@ public class GameEngine {
     @PreDestroy
     public void shutdown() {
         for (ScheduledFuture<?> f : tasks.values())
+            f.cancel(false);
+        for (ScheduledFuture<?> f : voteTimers.values())
             f.cancel(false);
         scheduler.shutdownNow();
     }
