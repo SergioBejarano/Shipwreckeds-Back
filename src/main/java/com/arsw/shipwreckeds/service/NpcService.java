@@ -13,19 +13,23 @@ public class NpcService {
     // start NPC ids at a high offset to avoid colliding with player ids
     private final AtomicLong nextNpcId = new AtomicLong(100000);
 
-    /**
-     * Genera NPCs simples para la partida. Según la épica se crean 3 NPCs:
-     * - 1 NPC infiltrado
-     * - 2 o 3 NPCs náufragos (aquí generamos 3 en total: 1 infiltrado + 2
-     * náufragos)
-     */
     public void generateNpcs(Match match) {
         if (match == null)
             return;
-        // generate 3 NPCs with random positions inside default island radius
-        double islandRadius = 100.0; // default radius if not provided by a GameEngine
+        int humanCount = match.getPlayers() != null ? match.getPlayers().size() : 0;
+        // Queremos que la cantidad total de "rojos" (NPCs + infiltrado humano) iguale
+        // la cantidad de náufragos (jugadores azules). Dado que ya existe exactamente
+        // un
+        // infiltrado humano marcado en el match, la cantidad de NPCs debe ser
+        // (humanCount - 2). Si por alguna razón no hay infiltrado asignado todavía,
+        // esta fórmula mantiene al menos 0 NPCs.
+        int desiredNpcCount = Math.max(0, humanCount - 2);
+
+        match.getNpcs().clear();
+
+        double islandRadius = 100.0; // default radius if not provided by the GameEngine
         java.util.Random rnd = new java.util.Random();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < desiredNpcCount; i++) {
             double ang = rnd.nextDouble() * Math.PI * 2;
             double r = rnd.nextDouble() * (islandRadius * 0.7); // keep them closer to center
             double x = Math.cos(ang) * r;

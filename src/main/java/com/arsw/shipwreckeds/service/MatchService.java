@@ -59,7 +59,8 @@ public class MatchService {
         Match match = new Match(nextId++, code);
         match.addPlayer(host);
 
-        // opcional: generar 3 NPCs con skin igual al infiltrado? (infiltrador se asignará al start)
+        // opcional: generar 3 NPCs con skin igual al infiltrado? (infiltrador se
+        // asignará al start)
         // Aquí no añadimos NPCs todavía.
 
         StoredMatch sm = new StoredMatch(match, Instant.now().getEpochSecond(), MATCH_TTL_SECONDS);
@@ -69,9 +70,11 @@ public class MatchService {
     }
 
     public Match joinMatch(String code, Player player) {
-        if (code == null || code.trim().isEmpty()) throw new IllegalArgumentException("Código inválido.");
+        if (code == null || code.trim().isEmpty())
+            throw new IllegalArgumentException("Código inválido.");
         StoredMatch sm = matchesByCode.get(code);
-        if (sm == null) throw new IllegalArgumentException("Código inválido o partida no encontrada.");
+        if (sm == null)
+            throw new IllegalArgumentException("Código inválido o partida no encontrada.");
 
         // verificar caducidad
         long now = Instant.now().getEpochSecond();
@@ -87,7 +90,7 @@ public class MatchService {
             if (match.getStatus() != null && match.getStatus().name().equals("STARTED")) {
                 throw new IllegalArgumentException("La partida ya ha comenzado.");
             }
-            if (match.getPlayers().size() >= 5) {
+            if (match.getPlayers().size() >= 8) {
                 throw new IllegalArgumentException("La partida está llena.");
             }
             // evitar nombres duplicados en la misma partida
@@ -105,7 +108,8 @@ public class MatchService {
 
     public Match getMatchByCode(String code) {
         StoredMatch sm = matchesByCode.get(code);
-        if (sm == null) return null;
+        if (sm == null)
+            return null;
         long now = Instant.now().getEpochSecond();
         if (now > sm.createdAtEpochSec + sm.ttlSeconds) {
             matchesByCode.remove(code);

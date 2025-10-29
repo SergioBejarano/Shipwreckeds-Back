@@ -229,6 +229,11 @@ public class Match {
             System.out.println("No se pueden unir más jugadores, la partida ya ha comenzado.");
             return;
         }
+        if (player != null) {
+            player.setAlive(true);
+            player.setInfiltrator(false);
+            player.setPosition(null);
+        }
         players.add(player);
         System.out.println("Jugador " + player.getUsername() + " se unió a la partida con código " + code + ".");
     }

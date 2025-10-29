@@ -30,7 +30,8 @@ public class AuthService {
      * @param username nombre de usuario
      * @param password contraseña
      * @return Player creado para la sesión
-     * @throws IllegalArgumentException si credenciales inválidas o usuario ya conectado
+     * @throws IllegalArgumentException si credenciales inválidas o usuario ya
+     *                                  conectado
      */
     public Player login(String username, String password) {
         if (username == null || username.trim().isEmpty() ||
@@ -45,14 +46,18 @@ public class AuthService {
                 "bruno", "1234",
                 "carla", "1234",
                 "diego", "1234",
-                "eva", "1234");
+                "eva", "1234",
+                "fran", "1234",
+                "galo", "1234",
+                "helen", "1234");
 
         String expected = allowed.get(username);
         if (expected == null || !expected.equals(password)) {
             throw new IllegalArgumentException("Credenciales inválidas.");
         }
 
-        // Intento atómico de inserción: si ya hay una sesión activa para ese username, rechazamos.
+        // Intento atómico de inserción: si ya hay una sesión activa para ese username,
+        // rechazamos.
         Player candidate = new Player(nextId.getAndIncrement(), username, "default-skin", null);
         Player previous = loggedPlayers.putIfAbsent(username, candidate);
         if (previous != null) {

@@ -16,4 +16,5 @@ public class VoteResult {
     private Long expelledId;
     private String expelledType; // "npc" or "human"
     private String message;
+    private int abstentions;
 }

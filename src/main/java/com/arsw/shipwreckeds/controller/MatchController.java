@@ -288,9 +288,14 @@ public class MatchController {
             gameEngine.cancelVoteTimeout(code);
 
             java.util.Map<Long, Integer> counts = new java.util.LinkedHashMap<>();
+            int abstentions = 0;
             if (match.getVotesByPlayer() != null) {
                 for (Long tid : match.getVotesByPlayer().values()) {
                     if (tid == null) {
+                        continue;
+                    }
+                    if (tid < 0) {
+                        abstentions++;
                         continue;
                     }
                     counts.put(tid, counts.getOrDefault(tid, 0) + 1);
@@ -305,7 +310,9 @@ public class MatchController {
                     totalVotes += value;
                 }
             }
-            int majorityThreshold = Math.max(1, (totalVotes + 1) / 2);
+            int majorityThreshold = totalVotes > 0
+                    ? (int) Math.ceil(totalVotes / 2.0)
+                    : 1;
 
             Long leadingId = null;
             int leadingVotes = 0;
@@ -345,10 +352,10 @@ public class MatchController {
                         match.endMatch();
                         gameEngine.stopMatchTicker(code);
                         result = new VoteResult(counts, leadingId, "human",
-                                "El infiltrado fue expulsado por mayoría. Los náufragos ganan.");
+                                "El infiltrado fue expulsado por mayoría. Los náufragos ganan.", abstentions);
                     } else {
                         result = new VoteResult(counts, leadingId, "human",
-                                "Un jugador humano fue expulsado por mayoría.");
+                                "Un jugador humano fue expulsado por mayoría.", abstentions);
                     }
 
                     webSocketController.broadcastVoteResult(code, result);
@@ -376,7 +383,7 @@ public class MatchController {
                             : "Se expulsó un NPC por mayoría.";
 
                     VoteResult result = new VoteResult(counts, leadingId, "npc",
-                            resultMessage);
+                            resultMessage, abstentions);
                     webSocketController.broadcastVoteResult(code, result);
                     webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
                     return;
@@ -390,14 +397,19 @@ public class MatchController {
 
             String message;
             if (counts.isEmpty()) {
-                message = dueToTimeout ? "La votación terminó sin votos. Nadie fue expulsado."
-                        : "Nadie votó. Nadie fue expulsado.";
+                if (abstentions > 0) {
+                    message = dueToTimeout ? "La votación terminó sin mayoría (solo abstenciones). Nadie fue expulsado."
+                            : "Todos se abstuvieron. Nadie fue expulsado.";
+                } else {
+                    message = dueToTimeout ? "La votación terminó sin votos. Nadie fue expulsado."
+                            : "Nadie votó. Nadie fue expulsado.";
+                }
             } else {
                 message = dueToTimeout ? "La votación terminó sin mayoría. Nadie fue expulsado."
                         : "No hubo mayoría. Nadie fue expulsado.";
             }
 
-            VoteResult result = new VoteResult(counts, null, "none", message);
+            VoteResult result = new VoteResult(counts, null, "none", message, abstentions);
             webSocketController.broadcastVoteResult(code, result);
             webSocketController.broadcastGameState(code, buildGameStateForMatch(match));
         }

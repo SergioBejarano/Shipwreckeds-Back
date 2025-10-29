@@ -53,8 +53,11 @@ public class GameEngine {
                 if (match.getStatus() != null && match.getStatus().name().equals("STARTED")) {
                     int t = match.getTimerSeconds();
                     if (t <= 0) {
+                        if (match.getWinnerMessage() == null || match.getWinnerMessage().isBlank()) {
+                            match.setWinnerMessage("Se acabó el tiempo, ganó el infiltrado.");
+                        }
                         match.endMatch();
-                        // broadcast final state
+                        // broadcast final state including winner message
                         ws.broadcastGameState(code, buildGameState(match));
                         stopMatchTicker(code);
                         return;
