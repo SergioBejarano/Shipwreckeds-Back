@@ -2,6 +2,23 @@
 
 Backend de la aplicación "Shipwreckeds" (Spring Boot). Provee autenticación, gestión de partidas y el motor de juego con soporte WebSocket.
 
+## Diagramas
+
+### Diagrama de clases (modelo)
+
+![alt text](src/img/modelo.png)
+
+### Diagrama de componentes
+
+![alt text](src/img/componenentes.png)
+
+### Diagramas de actividades (Fuel War y Votación)
+
+![alt text](<src/img/Shipwreckeds flujo (Fuel War).png>)
+
+![alt text](<src/img/Shipwreckeds flujo (votación).png>)
+
+
 ## Estructura principal
 - Aplicación principal: [`com.arsw.shipwreckeds.ShipwreckedsBackendApplication`](src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java) — [src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java](src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java)  
 - Configuración WebSocket: [`com.arsw.shipwreckeds.config.WebSocketConfig`](src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java) — [src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java](src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java)
