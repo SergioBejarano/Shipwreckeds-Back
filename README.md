@@ -18,6 +18,9 @@ Backend de la aplicación "Shipwreckeds" (Spring Boot). Provee autenticación, g
 
 ![alt text](<src/img/Shipwreckeds flujo (votación).png>)
 
+### Diagrama de despliegue
+
+![alt text](src/img/Despliegue.jpeg)
 
 ## Estructura principal
 - Aplicación principal: [`com.arsw.shipwreckeds.ShipwreckedsBackendApplication`](src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java) — [src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java](src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java)  
