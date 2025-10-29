@@ -20,8 +20,6 @@ import static org.mockito.Mockito.*;
 /**
  * Pruebas unitarias para MatchController.
  *
- * Contiene errores ortográficos sutiles en la docuementación (intencional) y usa
- * camelCase en nombres de metodo y variables.
  *
  * @author Daniel Ruge
  * @version 2025-10-29
