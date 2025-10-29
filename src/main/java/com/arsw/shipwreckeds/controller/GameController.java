@@ -21,8 +21,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Controller para recibir comandos de movimiento vía STOMP y aplicar
- * lógica servidor-autoritativa mínima antes de reenviar el GameState.
+ * STOMP message controller that validates and applies movement commands before
+ * broadcasting updated game state snapshots.
  */
 @Controller
 public class GameController {
@@ -36,15 +36,28 @@ public class GameController {
     private final AuthService authService;
     private final WebSocketController webSocketController;
 
-    // simple rate-limit: last timestamp per avatar id (ms)
     private final Map<Long, Long> lastMoveTsByAvatar = new ConcurrentHashMap<>();
 
+    /**
+     * Creates a controller that handles player movement synchronization.
+     *
+     * @param matchService        service used to retrieve active matches
+     * @param authService         service that validates player sessions
+     * @param webSocketController broadcaster for updated game state messages
+     */
     public GameController(MatchService matchService, AuthService authService, WebSocketController webSocketController) {
         this.matchService = matchService;
         this.authService = authService;
         this.webSocketController = webSocketController;
     }
 
+    /**
+     * Processes movement commands sent by clients while enforcing ownership and
+     * rate limiting rules.
+     *
+     * @param code match identifier extracted from the STOMP destination
+     * @param cmd  payload with avatar id, direction and issuing player
+     */
     @MessageMapping("/game/{code}/move")
     public void handleMove(@DestinationVariable String code, MoveCommand cmd) {
         if (cmd == null || cmd.getUsername() == null || cmd.getAvatarId() == null || cmd.getDirection() == null)
@@ -124,6 +137,13 @@ public class GameController {
         }
     }
 
+    /**
+     * Builds a {@link GameState} snapshot representing the current state of the
+     * requested match.
+     *
+     * @param match match whose state needs to be broadcast
+     * @return immutable snapshot ready to send over WebSocket
+     */
     private GameState buildGameState(Match match) {
         List<AvatarState> avatars = new ArrayList<>();
         for (Player p : match.getPlayers()) {
@@ -152,8 +172,8 @@ public class GameController {
         GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
         String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
 
-        // 🟩 Nuevo campo: mensaje de victoria (si lo hay)
-        String winnerMessage = match.getWinnerMessage(); // <-- asegúrate de que exista el getter en Match
+        // Winner message propagated to the frontend when available
+        String winnerMessage = match.getWinnerMessage();
 
         return new GameState(
                 match.getCode(),

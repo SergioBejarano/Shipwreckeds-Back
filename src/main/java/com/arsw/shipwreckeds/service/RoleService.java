@@ -6,12 +6,17 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * Service in charge of selecting the human infiltrator for each match.
+ */
 @Service
 public class RoleService {
 
     /**
-     * Asigna un infiltrado humano aleatorio entre los jugadores humanos.
-     * Deja al resto como náufragos.
+     * Randomly assigns one human player as infiltrator and resets the rest to
+     * regular castaways.
+     *
+     * @param match match whose player roster will be updated
      */
     public void assignHumanRoles(Match match) {
         List<Player> players = match.getPlayers();

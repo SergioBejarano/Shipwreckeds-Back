@@ -4,9 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * DTO para petición de creación de partida.
- * @author Daniel
- * @version 22/10/2025
+ * Payload used by clients to request the creation of a new match.
+ *
  */
 @Getter
 @Setter

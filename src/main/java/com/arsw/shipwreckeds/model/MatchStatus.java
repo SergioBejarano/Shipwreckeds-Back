@@ -1,15 +1,14 @@
 package com.arsw.shipwreckeds.model;
 
 /**
- * Enumeración que representa los posibles estados de una partida.
- * 
- * WAITING     → La partida está esperando a que se unan los jugadores.
- * STARTED     → La partida ha comenzado y está en curso.
- * IN_MEETING  → Los jugadores se encuentran en una reunión de votación.
- * FINISHED    → La partida ha finalizado.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Enumeration describing the lifecycle states of a match.
+ * <ul>
+ * <li>{@link #WAITING}: players are gathering in the lobby.</li>
+ * <li>{@link #STARTED}: the match is in progress.</li>
+ * <li>{@link #IN_MEETING}: players are participating in a voting meeting.</li>
+ * <li>{@link #FINISHED}: the match has ended.</li>
+ * </ul>
+ *
  */
 public enum MatchStatus {
     WAITING,

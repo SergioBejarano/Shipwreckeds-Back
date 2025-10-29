@@ -4,20 +4,17 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Clase que representa a un jugador dentro de la partida.
- * 
- * Cada jugador tiene un nombre de usuario, una apariencia (skin),
- * una posición en el mapa y un estado que indica si sigue con vida
- * o si es el infiltrado dentro del grupo.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Represents a human participant in the match.
+ * <p>
+ * Tracks username, skin selection, position, and flags indicating whether the
+ * player is alive or assigned as the
+ * infiltrator.
+ *
  */
 @Getter
 @Setter
 public class Player {
 
-    // Atributos principales
     private Long id;
     private String username;
     private String skinId;
@@ -26,12 +23,12 @@ public class Player {
     private boolean isAlive;
 
     /**
-     * Constructor principal para crear un jugador con sus datos básicos.
-     * 
-     * @param id identificador único del jugador
-     * @param username nombre del jugador
-     * @param skinId apariencia seleccionada por el jugador
-     * @param position posición inicial en el mapa
+     * Creates a player with the provided base attributes.
+     *
+     * @param id       unique identifier
+     * @param username player nickname
+     * @param skinId   cosmetic selection
+     * @param position starting position on the map
      */
     public Player(Long id, String username, String skinId, Position position) {
         this.id = id;
@@ -43,18 +40,17 @@ public class Player {
     }
 
     /**
-     * Simula una acción de clic del jugador.
-     * Este método podría utilizarse en minijuegos o tareas
-     * donde el jugador deba realizar acciones rápidas.
+     * Simulates a click action performed by the player. Useful for
+     * quick-interaction mini games.
      */
     public void click() {
         System.out.println(username + " hizo un clic en el juego.");
     }
 
     /**
-     * Mueve al jugador hacia una nueva posición dentro del mapa.
-     * 
-     * @param p nueva posición destino del jugador
+     * Updates the player's position within the map.
+     *
+     * @param p destination coordinates
      */
     public void moveTo(Position p) {
         this.position = p;
@@ -62,18 +58,18 @@ public class Player {
     }
 
     /**
-     * Activa una tarea disponible en la partida.
-     * 
-     * @param taskId identificador de la tarea a realizar
+     * Logs the activation of a task.
+     *
+     * @param taskId identifier of the task being triggered
      */
     public void activateTask(Long taskId) {
         System.out.println(username + " activó la tarea con ID: " + taskId);
     }
 
     /**
-     * Permite al jugador emitir su voto durante una reunión.
-     * 
-     * @param targetNpcId identificador del NPC al que desea expulsar
+     * Emits a vote during a meeting.
+     *
+     * @param targetNpcId identifier of the NPC selected for expulsion
      */
     public void castVote(Long targetNpcId) {
         System.out.println(username + " votó para expulsar al NPC con ID: " + targetNpcId);

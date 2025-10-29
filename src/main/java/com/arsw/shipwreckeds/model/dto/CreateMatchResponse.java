@@ -4,9 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * DTO respuesta al crear partida (contiene código).
- * @author Daniel
- * @version 22/10/2025
+ * Payload used by clients to respond to a match creation request.
+ *
  */
 @Getter
 @AllArgsConstructor

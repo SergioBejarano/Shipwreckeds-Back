@@ -7,14 +7,12 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Clase que representa la tarea competitiva de llenar gasolina.
- * 
- * En esta tarea, dos jugadores compiten haciendo clics para intentar
- * dominar el nivel de gasolina compartido. Cada jugador acumula clics
- * y al final se determina el ganador según quién haya contribuido más.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Competitive task where players race to fill a shared fuel gauge.
+ * <p>
+ * Participants register clicks to assert control over the gauge. The winner is
+ * the player with the highest number of
+ * recorded clicks when the task ends.
+ *
  */
 
 @Getter
@@ -26,11 +24,11 @@ public class FuelWarTask extends Task {
     private Long initiatorId;
 
     /**
-     * Constructor principal para crear una tarea de guerra de gasolina.
-     * 
-     * @param id identificador único de la tarea
-     * @param location ubicación donde ocurre la tarea
-     * @param initiatorId jugador que inició la tarea
+     * Creates a new fuel war task anchored at a specific location.
+     *
+     * @param id          unique task identifier
+     * @param location    in-game location where the task can be triggered
+     * @param initiatorId player that initiated the contest
      */
     public FuelWarTask(Long id, Position location, Long initiatorId) {
         super(id, location);
@@ -40,9 +38,9 @@ public class FuelWarTask extends Task {
     }
 
     /**
-     * Inicia la tarea por el jugador que la activa.
-     * 
-     * @param playerId identificador del jugador que comienza la tarea
+     * Activates the contest on behalf of the triggering player.
+     *
+     * @param playerId identifier of the player that started the task
      */
     @Override
     public void startBy(Long playerId) {
@@ -52,9 +50,9 @@ public class FuelWarTask extends Task {
     }
 
     /**
-     * Registra un clic de un jugador durante la contienda.
-     * 
-     * @param playerId identificador del jugador que hace el clic
+     * Registers a new click for the given participant.
+     *
+     * @param playerId participant adding a click
      */
     public void registerClick(Long playerId) {
         if (!active) {
@@ -67,10 +65,11 @@ public class FuelWarTask extends Task {
     }
 
     /**
-     * Actualiza el progreso de la tarea (en este caso, cuenta clics).
-     * 
-     * @param playerId jugador que realizó la acción
-     * @param delta cantidad de clics a sumar
+     * Called when the task progression changes; delegates to
+     * {@link #registerClick(Long)}.
+     *
+     * @param playerId player performing the action
+     * @param delta    ignored delta, maintained for task compatibility
      */
     @Override
     public void progressUpdate(Long playerId, double delta) {
@@ -78,9 +77,9 @@ public class FuelWarTask extends Task {
     }
 
     /**
-     * Determina el jugador ganador al finalizar la contienda.
-     * 
-     * @return ID del jugador con más clics o null si hay empate
+     * Evaluates the collected clicks and returns the leading player.
+     *
+     * @return player id with the most clicks, or {@code null} when tied
      */
     public Long determineWinner() {
         if (clickCounts.isEmpty()) {

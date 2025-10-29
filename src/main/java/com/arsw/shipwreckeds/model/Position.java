@@ -4,28 +4,22 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 /**
- * Clase que representa una posición en el mapa del juego.
- * 
- * Cada posición está definida por coordenadas X y Y que indican
- * la ubicación del jugador o de un objeto dentro del entorno.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Represents a point within the island map using X and Y coordinates.
+ *
  */
 
 @Data
 @AllArgsConstructor
 public class Position {
 
-    // Coordenadas en el mapa (double para permitir movimiento suave)
     private double x;
     private double y;
 
     /**
-     * Mueve la posición a un nuevo punto en el mapa.
-     * 
-     * @param newX nueva coordenada X
-     * @param newY nueva coordenada Y
+     * Moves the position to a new point within the map.
+     *
+     * @param newX new X coordinate
+     * @param newY new Y coordinate
      */
     public void moveTo(double newX, double newY) {
         this.x = newX;
@@ -34,9 +28,7 @@ public class Position {
     }
 
     /**
-     * Retorna la posición como texto legible.
-     * 
-     * @return coordenadas formateadas como (x, y)
+     * @return formatted coordinates in the form {@code (x, y)}
      */
     @Override
     public String toString() {

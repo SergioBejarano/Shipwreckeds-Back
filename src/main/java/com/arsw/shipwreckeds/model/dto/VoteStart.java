@@ -12,7 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VoteStart {
-    private List<AvatarState> options; // who can be voted out (NPCs and possibly players)
+    private List<AvatarState> options;
     private String message;
     private int durationSeconds;
 }

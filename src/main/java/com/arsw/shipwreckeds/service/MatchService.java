@@ -11,10 +11,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Servicio que gestiona partidas en memoria para el MVP.
- * - Genera códigos alfanuméricos únicos
- * - Mantiene partidas activas en ConcurrentHashMap
- * - Verifica caducidad en el momento de join
+ * In-memory match registry used by the MVP backend.
+ * <ul>
+ * <li>Generates unique alphanumeric codes.</li>
+ * <li>Stores active matches in a {@link ConcurrentHashMap}.</li>
+ * <li>Validates lobby expiration on join requests.</li>
+ * </ul>
  *
  * @author Daniel Ruge
  * @version 22/10/2025
@@ -26,7 +28,6 @@ public class MatchService {
     private final SecureRandom random = new SecureRandom();
     private static final String ALPHANUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final int CODE_LENGTH = 6;
-    // TTL en segundos para lobbies no iniciados (por ejemplo 2 horas)
     private static final long MATCH_TTL_SECONDS = 2 * 60 * 60;
 
     private static long nextId = 1L;
@@ -43,8 +44,14 @@ public class MatchService {
         }
     }
 
+    /**
+     * Creates a new match for the host player and registers it under a unique code.
+     *
+     * @param host player that owns the lobby
+     * @return response DTO containing the generated match code
+     */
     public CreateMatchResponse createMatch(Player host) {
-        // generar código único
+        // Generate a unique code
         String code;
         int tries = 0;
         do {
@@ -55,13 +62,12 @@ public class MatchService {
             }
         } while (matchesByCode.containsKey(code));
 
-        // crear Match y agregar host
+        // Create the match and add the host
         Match match = new Match(nextId++, code);
         match.addPlayer(host);
 
-        // opcional: generar 3 NPCs con skin igual al infiltrado? (infiltrador se
-        // asignará al start)
-        // Aquí no añadimos NPCs todavía.
+        // Optional future step: pre-generate NPCs — deferred until the match actually
+        // starts
 
         StoredMatch sm = new StoredMatch(match, Instant.now().getEpochSecond(), MATCH_TTL_SECONDS);
         matchesByCode.put(code, sm);
@@ -69,6 +75,14 @@ public class MatchService {
         return new CreateMatchResponse(code);
     }
 
+    /**
+     * Adds a player to the match identified by the given code if the lobby is still
+     * open.
+     *
+     * @param code   match code provided by the host
+     * @param player player attempting to join
+     * @return updated {@link Match} instance reflecting the current lobby state
+     */
     public Match joinMatch(String code, Player player) {
         if (code == null || code.trim().isEmpty())
             throw new IllegalArgumentException("Código inválido.");
@@ -76,10 +90,10 @@ public class MatchService {
         if (sm == null)
             throw new IllegalArgumentException("Código inválido o partida no encontrada.");
 
-        // verificar caducidad
+        // Check whether the lobby has expired
         long now = Instant.now().getEpochSecond();
         if (now > sm.createdAtEpochSec + sm.ttlSeconds) {
-            // eliminar y rechazar
+            // Remove the lobby and reject the join attempt
             matchesByCode.remove(code);
             throw new IllegalArgumentException("El código ha caducado.");
         }
@@ -93,7 +107,7 @@ public class MatchService {
             if (match.getPlayers().size() >= 8) {
                 throw new IllegalArgumentException("La partida está llena.");
             }
-            // evitar nombres duplicados en la misma partida
+            // Prevent duplicate usernames inside the same match
             boolean nameTaken = match.getPlayers().stream()
                     .anyMatch(p -> p.getUsername().equals(player.getUsername()));
             if (nameTaken) {
@@ -106,6 +120,13 @@ public class MatchService {
         return match;
     }
 
+    /**
+     * Retrieves the match referenced by the given code, pruning expired entries if
+     * necessary.
+     *
+     * @param code match identifier assigned at creation time
+     * @return match instance or {@code null} if not found or expired
+     */
     public Match getMatchByCode(String code) {
         StoredMatch sm = matchesByCode.get(code);
         if (sm == null)
@@ -118,6 +139,13 @@ public class MatchService {
         return sm.match;
     }
 
+    /**
+     * Generates an alphanumeric code of the requested length using
+     * {@link SecureRandom}.
+     *
+     * @param length number of characters to generate
+     * @return new alphanumeric code
+     */
     private String generateCode(int length) {
         StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) {

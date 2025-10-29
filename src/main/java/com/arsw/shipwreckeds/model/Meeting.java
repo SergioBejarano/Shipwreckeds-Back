@@ -9,20 +9,18 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Clase que representa una reunión dentro de una partida.
- * 
- * Durante la reunión, los jugadores pueden enviar mensajes por chat
- * y votar para expulsar a un NPC sospechoso. Al finalizar el tiempo,
- * los votos son contados y se determina el NPC con más votos.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Encapsulates the state of an emergency meeting inside a match.
+ * <p>
+ * While a meeting is active, players can send chat messages and cast votes
+ * against suspicious NPCs. Once the
+ * countdown finishes, the votes are tallied to determine the most selected
+ * target.
+ *
  */
 @Setter
 @Getter
 public class Meeting {
 
-    // Atributos principales
     private Long id;
     private Player calledBy;
     private int durationSeconds;
@@ -30,11 +28,11 @@ public class Meeting {
     private Map<Long, Long> votes;
 
     /**
-     * Constructor principal de la reunión.
-     * 
-     * @param id identificador único de la reunión
-     * @param calledBy jugador que convocó la reunión
-     * @param durationSeconds duración de la reunión en segundos
+     * Creates a meeting record owned by the specified player.
+     *
+     * @param id              sequential meeting identifier
+     * @param calledBy        player who triggered the meeting
+     * @param durationSeconds meeting duration in seconds
      */
     public Meeting(Long id, Player calledBy, int durationSeconds) {
         this.id = id;
@@ -45,8 +43,7 @@ public class Meeting {
     }
 
     /**
-     * Inicia la reunión.
-     * En una versión posterior, este método podría activar un temporizador real.
+     * Starts the meeting. Future iterations may attach a real timer here.
      */
     public void start() {
         System.out.println("La reunión fue convocada por " + calledBy.getUsername() + ".");
@@ -54,9 +51,9 @@ public class Meeting {
     }
 
     /**
-     * Agrega un mensaje de chat a la reunión.
-     * 
-     * @param msg mensaje enviado por un jugador
+     * Adds a chat message to the transcript.
+     *
+     * @param msg message sent by a player
      */
     public void addChat(ChatMessage msg) {
         chatMessages.add(msg);
@@ -64,10 +61,10 @@ public class Meeting {
     }
 
     /**
-     * Registra el voto de un jugador hacia un NPC.
-     * 
-     * @param voterId identificador del jugador que vota
-     * @param targetNpcId identificador del NPC al que desea expulsar
+     * Registers a vote cast by a player.
+     *
+     * @param voterId     identifier of the voter
+     * @param targetNpcId NPC id selected for elimination
      */
     public void castVote(Long voterId, Long targetNpcId) {
         votes.put(voterId, targetNpcId);
@@ -75,10 +72,10 @@ public class Meeting {
     }
 
     /**
-     * Cuenta los votos al finalizar la reunión y devuelve el ID del NPC con más votos.
-     * Si hay empate, retorna null.
-     * 
-     * @return identificador del NPC más votado o null si hay empate
+     * Computes the most voted NPC once the meeting finishes.
+     *
+     * @return NPC identifier with the highest vote count, or {@code null} in case
+     *         of a tie
      */
     public Long tallyVotes() {
         if (votes.isEmpty()) {

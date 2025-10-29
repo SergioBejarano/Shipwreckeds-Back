@@ -9,6 +9,10 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * Serializable snapshot of an avatar (human or NPC) used to render the island
+ * view on the client.
+ */
 public class AvatarState {
     private Long id;
     private String type; // "human" | "npc"

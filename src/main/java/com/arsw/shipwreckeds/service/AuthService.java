@@ -8,10 +8,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Servicio que gestiona el inicio de sesión simulado.
- *
- * Los jugadores se almacenan temporalmente en memoria.
- * No hay persistencia ni autenticación real (MVP).
+ * In-memory authentication service used for the MVP lobby.
+ * <p>
+ * Players are tracked in memory only; there is no persistent storage or real
+ * authentication backend.
  *
  * @author Daniel Ruge
  * @version 19/10/2025
@@ -24,14 +24,16 @@ public class AuthService {
     private final AtomicLong nextId = new AtomicLong(1);
 
     /**
-     * Intenta iniciar sesión con el nombre y contraseña ingresados.
-     * Rechaza el login si el username ya tiene una sesión activa.
+     * Attempts to authenticate the supplied credentials and allocate a new
+     * in-memory player session.
+     * The login is rejected if the username already has an active session.
      *
-     * @param username nombre de usuario
-     * @param password contraseña
-     * @return Player creado para la sesión
-     * @throws IllegalArgumentException si credenciales inválidas o usuario ya
-     *                                  conectado
+     * @param username player identifier attempting to log in
+     * @param password plain-text password to validate against the predefined
+     *                 accounts
+     * @return {@link Player} representing the active session
+     * @throws IllegalArgumentException if the credentials are missing, invalid, or
+     *                                  the player is already connected
      */
     public Player login(String username, String password) {
         if (username == null || username.trim().isEmpty() ||
@@ -39,8 +41,8 @@ public class AuthService {
             throw new IllegalArgumentException("Por favor ingresa tu nombre y contraseña para continuar.");
         }
 
-        // validar contra usuarios predefinidos (epica 1)
-        // sólo se permiten estas cuentas en este MVP
+        // Validate against predefined accounts; only these credentials are accepted in
+        // this MVP
         var allowed = Map.of(
                 "ana", "1234",
                 "bruno", "1234",
@@ -56,8 +58,8 @@ public class AuthService {
             throw new IllegalArgumentException("Credenciales inválidas.");
         }
 
-        // Intento atómico de inserción: si ya hay una sesión activa para ese username,
-        // rechazamos.
+        // Atomic insertion attempt: reject if the username already has an active
+        // session
         Player candidate = new Player(nextId.getAndIncrement(), username, "default-skin", null);
         Player previous = loggedPlayers.putIfAbsent(username, candidate);
         if (previous != null) {
@@ -70,10 +72,11 @@ public class AuthService {
     }
 
     /**
-     * Retorna el Player actualmente logueado por su username.
+     * Retrieves the logged-in {@link Player} with the given username, if present.
      *
-     * @param username nombre del jugador
-     * @return Player si está conectado, o null si no existe
+     * @param username unique player identifier
+     * @return player if connected, or {@code null} when no session exists for that
+     *         username
      */
     public Player getPlayer(String username) {
         if (username == null)
@@ -82,10 +85,10 @@ public class AuthService {
     }
 
     /**
-     * Elimina al jugador de la lista de conectados (opcional, útil para pruebas).
+     * Removes the player from the active session registry.
      *
-     * @param username nombre del jugador a desconectar
-     * @return true si existía y fue removido, false si no existía
+     * @param username identifier of the player to disconnect
+     * @return {@code true} if a session was removed, otherwise {@code false}
      */
     public boolean logout(String username) {
         if (username == null)

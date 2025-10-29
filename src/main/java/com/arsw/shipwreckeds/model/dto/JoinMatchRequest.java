@@ -4,9 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * DTO para petición de unirse a partida.
- * @author Daniel
- * @version 22/10/2025
+ * Payload used by clients to request joining a match.
+ *
  */
 @Getter
 @Setter

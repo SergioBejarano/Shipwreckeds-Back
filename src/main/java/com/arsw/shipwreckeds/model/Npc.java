@@ -4,21 +4,16 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Clase que representa a un NPC (personaje no jugador) dentro del juego.
- * 
- * Los NPCs simulan comportamientos humanos, moviéndose por la isla
- * y realizando acciones básicas para confundir a los jugadores.
- * Comparten la misma apariencia que el infiltrado y pueden ser
- * sospechosos durante la reunión.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Represents a non-player character roaming the island.
+ * <p>
+ * NPCs mimic human behavior, share the infiltrator's appearance, and are meant
+ * to mislead players during meetings.
+ *
  */
 @Getter
 @Setter
 public class Npc {
 
-    // Atributos principales
     private Long id;
     private String skinId;
     private Position position;
@@ -28,12 +23,13 @@ public class Npc {
     private String displayName;
 
     /**
-     * Constructor que crea un nuevo NPC con su apariencia y posición inicial.
-     * 
-     * @param id            identificador único del NPC
-     * @param skinId        apariencia del NPC (coincide con la del infiltrado)
-     * @param position      posición inicial en el mapa
-     * @param movementSpeed velocidad base de movimiento
+     * Builds a new NPC with visual traits and starting position.
+     *
+     * @param id            NPC identifier
+     * @param skinId        appearance identifier (mirrors the infiltrator)
+     * @param position      initial map position
+     * @param movementSpeed base movement speed
+     * @param infiltrator   whether this NPC should be flagged as infiltrator themed
      */
     public Npc(Long id, String skinId, Position position, double movementSpeed, boolean infiltrator) {
         this.id = id;
@@ -46,10 +42,10 @@ public class Npc {
     }
 
     /**
-     * Mueve al NPC hacia una nueva posición simulando comportamiento autónomo.
-     * 
-     * @param newX nueva coordenada X
-     * @param newY nueva coordenada Y
+     * Moves the NPC to a new position, simulating autonomous behavior.
+     *
+     * @param newX new X coordinate
+     * @param newY new Y coordinate
      */
     public void moveTo(int newX, int newY) {
         if (!active) {
@@ -61,9 +57,8 @@ public class Npc {
     }
 
     /**
-     * Simula el movimiento automático del NPC dentro del mapa.
-     * En una versión más avanzada, este método podría ser controlado
-     * por un hilo o por un sistema de IA simple.
+     * Simulates a random step across the island. Future versions may delegate to an
+     * AI system.
      */
     public void performRandomMovement() {
         if (!active)
@@ -79,7 +74,7 @@ public class Npc {
     }
 
     /**
-     * Desactiva al NPC (por ejemplo, si fue "expulsado" en la votación).
+     * Deactivates the NPC, e.g., when expelled during a vote.
      */
     public void deactivate() {
         this.active = false;

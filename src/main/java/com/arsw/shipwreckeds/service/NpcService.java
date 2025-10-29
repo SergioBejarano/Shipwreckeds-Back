@@ -7,22 +7,30 @@ import org.springframework.stereotype.Service;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Service responsible for generating non-player characters with consistent ids
+ * and positions.
+ */
 @Service
 public class NpcService {
 
     // start NPC ids at a high offset to avoid colliding with player ids
     private final AtomicLong nextNpcId = new AtomicLong(100000);
 
+    /**
+     * Recreates the NPC roster so the number of red avatars matches the number of
+     * human castaways.
+     *
+     * @param match match on which the NPCs will be spawned
+     */
     public void generateNpcs(Match match) {
         if (match == null)
             return;
         int humanCount = match.getPlayers() != null ? match.getPlayers().size() : 0;
-        // Queremos que la cantidad total de "rojos" (NPCs + infiltrado humano) iguale
-        // la cantidad de náufragos (jugadores azules). Dado que ya existe exactamente
-        // un
-        // infiltrado humano marcado en el match, la cantidad de NPCs debe ser
-        // (humanCount - 2). Si por alguna razón no hay infiltrado asignado todavía,
-        // esta fórmula mantiene al menos 0 NPCs.
+        // Ensure red avatars (NPCs + infiltrator) balance the number of blue castaways.
+        // With one infiltrator marked,
+        // the NPC count becomes (humanCount - 2). If an infiltrator is not yet
+        // assigned, the formula resolves to zero.
         int desiredNpcCount = Math.max(0, humanCount - 2);
 
         match.getNpcs().clear();

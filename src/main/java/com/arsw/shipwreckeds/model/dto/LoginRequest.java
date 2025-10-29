@@ -4,11 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * DTO que representa los datos enviados desde el frontend
- * durante el inicio de sesión simple.
- * 
- * @author Daniel Ruge
- * @version 19/10/2025
+ * Payload used by clients to request login.
+ *
  */
 @Getter
 @Setter

@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
+/**
+ * Server-side engine responsible for ticking matches, moving NPCs and
+ * scheduling vote timers.
+ */
 @Service
 public class GameEngine {
 
@@ -41,6 +45,12 @@ public class GameEngine {
         this.ws = ws;
     }
 
+    /**
+     * Starts the periodic task that updates a match timer and NPC movement.
+     * Any previous ticker for the same match will be stopped.
+     *
+     * @param match match to tick
+     */
     public void startMatchTicker(Match match) {
         if (match == null)
             return;
@@ -77,6 +87,11 @@ public class GameEngine {
         tasks.put(code, f);
     }
 
+    /**
+     * Stops the ticking task for the given match code, if any.
+     *
+     * @param code identifier of the match to stop
+     */
     public void stopMatchTicker(String code) {
         ScheduledFuture<?> f = tasks.remove(code);
         if (f != null)
@@ -84,6 +99,12 @@ public class GameEngine {
         npcTargetsByMatch.remove(code);
     }
 
+    /**
+     * Schedules the vote timeout task for a match, canceling any existing timer.
+     *
+     * @param match    match owning the timeout
+     * @param callback logic to execute when the timer expires
+     */
     public void scheduleVoteTimeout(Match match, Runnable callback) {
         if (match == null) {
             return;
@@ -98,6 +119,11 @@ public class GameEngine {
         voteTimers.put(code, future);
     }
 
+    /**
+     * Cancels the scheduled vote timeout for the specified match.
+     *
+     * @param code match identifier
+     */
     public void cancelVoteTimeout(String code) {
         ScheduledFuture<?> future = voteTimers.remove(code);
         if (future != null) {
@@ -105,6 +131,12 @@ public class GameEngine {
         }
     }
 
+    /**
+     * Creates a {@link GameState} snapshot for broadcasting.
+     *
+     * @param match match whose state is being serialized
+     * @return ready-to-send game state payload
+     */
     private GameState buildGameState(Match match) {
         List<AvatarState> avatars = new ArrayList<>();
         for (Player p : match.getPlayers()) {
@@ -143,6 +175,13 @@ public class GameEngine {
                 match.getFuelWindowSecondsRemaining());
     }
 
+    /**
+     * Updates NPC positions towards their assigned targets, creating new targets
+     * when needed.
+     *
+     * @param match        match containing the NPCs
+     * @param deltaSeconds elapsed seconds since the last update
+     */
     private void updateNpcMovement(Match match, double deltaSeconds) {
         Map<Long, Position> targets = npcTargetsByMatch.computeIfAbsent(match.getCode(),
                 k -> new ConcurrentHashMap<>());
@@ -183,6 +222,11 @@ public class GameEngine {
         }
     }
 
+    /**
+     * Generates a random position within the island radius.
+     *
+     * @return pseudo-random position constrained to the island
+     */
     private Position randomIslandPoint() {
         double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
         double radius = ThreadLocalRandom.current().nextDouble(0, ISLAND_RADIUS * 0.9);
@@ -191,15 +235,30 @@ public class GameEngine {
         return new Position(x, y);
     }
 
+    /**
+     * Builds a stable alias to visually represent infiltrators as NPCs.
+     *
+     * @param baseId base id to incorporate into the alias
+     * @return formatted alias string
+     */
     public static String buildNpcAlias(long baseId) {
         return "NPC-" + (NPC_ALIAS_OFFSET + baseId);
     }
 
+    /**
+     * Resolves the alias used when rendering an infiltrator as an NPC.
+     *
+     * @param playerId infiltrator id
+     * @return alias string used client-side
+     */
     private String aliasForInfiltrator(Long playerId) {
         long id = playerId != null ? playerId : 0L;
         return buildNpcAlias(id);
     }
 
+    /**
+     * Cancels all scheduled tasks before the bean is destroyed.
+     */
     @PreDestroy
     public void shutdown() {
         for (ScheduledFuture<?> f : tasks.values())
