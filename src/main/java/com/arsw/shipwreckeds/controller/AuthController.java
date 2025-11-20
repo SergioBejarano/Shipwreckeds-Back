@@ -1,8 +1,11 @@
 package com.arsw.shipwreckeds.controller;
 
-import com.arsw.shipwreckeds.model.Player;
+import com.arsw.shipwreckeds.model.dto.LoginCodeRequest;
 import com.arsw.shipwreckeds.model.dto.LoginRequest;
+import com.arsw.shipwreckeds.model.dto.LoginResponse;
 import com.arsw.shipwreckeds.service.AuthService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
 public class AuthController {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthService authService;
 
@@ -43,13 +48,31 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         try {
-            Player player = authService.login(request.getUsername(), request.getPassword());
-            return ResponseEntity.ok(player);
+            LoginResponse response = authService.login(request.getUsername(), request.getPassword());
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().contains("ya conectado")) {
                 return ResponseEntity.status(409).body(e.getMessage());
             }
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/login/code")
+    public ResponseEntity<?> loginWithCode(@RequestBody LoginCodeRequest request) {
+        try {
+            LoginResponse response = authService.loginWithAuthorizationCode(request.getCode(),
+                    request.getRedirectUri());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("Login por código rechazado: {}", e.getMessage());
+            if (e.getMessage() != null && e.getMessage().contains("ya conectado")) {
+                return ResponseEntity.status(409).body(e.getMessage());
+            }
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (IllegalStateException e) {
+            LOGGER.error("Falla interna al intercambiar código de Cognito", e);
+            return ResponseEntity.status(502).body(e.getMessage());
         }
     }
 

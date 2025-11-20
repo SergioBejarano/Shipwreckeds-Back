@@ -1,8 +1,9 @@
 package com.arsw.shipwreckeds;
 
 import com.arsw.shipwreckeds.controller.AuthController;
-import com.arsw.shipwreckeds.model.Player;
+import com.arsw.shipwreckeds.model.dto.LoginCodeRequest;
 import com.arsw.shipwreckeds.model.dto.LoginRequest;
+import com.arsw.shipwreckeds.model.dto.LoginResponse;
 import com.arsw.shipwreckeds.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,20 +53,19 @@ class AuthControllerTest {
         // arrange
         String username = "juan";
         String password = "secret";
-        // No comprobamos el body exacto porque la clase Player puede variar;
-        // nos interesa que el endpoint responda 200 OK y que el servicio sea invocado.
-        Player playerStub = mock(Player.class); // solo para simular retorno
-        when(authService.login(username, password)).thenReturn(playerStub);
+        LoginResponse response = mock(LoginResponse.class);
+        when(authService.login(username, password)).thenReturn(response);
 
         LoginRequest req = new LoginRequest();
-        // Intentamos rellenar campos por reflexión/POJO; si tu LoginRequest tiene otro constructor, ajusta.
+        // Intentamos rellenar campos por reflexión/POJO; si tu LoginRequest tiene otro
+        // constructor, ajusta.
         req.setUsername(username);
         req.setPassword(password);
 
         // act & assert
         mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
 
@@ -87,8 +87,8 @@ class AuthControllerTest {
 
         // act & assert
         mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string(message));
 
@@ -100,7 +100,7 @@ class AuthControllerTest {
         // arrange
         String username = "pedro";
         String password = "pwd";
-        String message = "usuario ya conectado en otra sesión";
+        String message = "usuario ya conectado desde otro cliente.";
 
         when(authService.login(username, password)).thenThrow(new IllegalArgumentException(message));
 
@@ -110,12 +110,50 @@ class AuthControllerTest {
 
         // act & assert
         mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict())
                 .andExpect(content().string(message));
 
         verify(authService, times(1)).login(username, password);
+    }
+
+    @Test
+    void loginWithCode_whenValid_returnsOk() throws Exception {
+        LoginResponse response = mock(LoginResponse.class);
+        when(authService.loginWithAuthorizationCode("code123", "http://localhost"))
+                .thenReturn(response);
+
+        LoginCodeRequest req = new LoginCodeRequest();
+        req.setCode("code123");
+        req.setRedirectUri("http://localhost");
+
+        mockMvc.perform(post("/api/auth/login/code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        verify(authService).loginWithAuthorizationCode("code123", "http://localhost");
+    }
+
+    @Test
+    void loginWithCode_whenConflict_returns409() throws Exception {
+        String message = "Usuario ya conectado desde otro cliente.";
+        when(authService.loginWithAuthorizationCode("abc", "uri"))
+                .thenThrow(new IllegalArgumentException(message));
+
+        LoginCodeRequest req = new LoginCodeRequest();
+        req.setCode("abc");
+        req.setRedirectUri("uri");
+
+        mockMvc.perform(post("/api/auth/login/code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isConflict())
+                .andExpect(content().string(message));
+
+        verify(authService).loginWithAuthorizationCode("abc", "uri");
     }
 
     @Test

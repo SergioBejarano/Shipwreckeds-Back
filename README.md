@@ -105,3 +105,14 @@ Compilar:
 ```sh
 mvn clean package
 ```
+
+### Autenticación con AWS Cognito
+
+- Dominio: `https://us-east-1symlrgxi6.auth.us-east-1.amazoncognito.com`
+- Usuarios precargados: **ana, bruno, carla, diego, eva** (contraseña `Arsw2025-2`).
+- Configura las credenciales del cliente en `application.properties` o variables de entorno:
+  - `COGNITO_CLIENT_ID`
+  - `COGNITO_CLIENT_SECRET` (opcional si el cliente no usa secreto)
+- El frontend redirige al Hosted UI de Cognito. Define el redirect URI permitido (por defecto `http://localhost:5173`) y, si lo necesitas, sobreescribe con `VITE_COGNITO_REDIRECT_URI` al ejecutar `npm run dev` en `front/`.
+- El scope configurado actualmente es `email openid phone`; ajusta `COGNITO_SCOPE` si necesitas permisos adicionales.
+- Si tu frontend vive en otro dominio, añade su URL a `app.cors.allowed-origins` (propiedad separada por comas) para que el backend responda a las solicitudes CORS.
