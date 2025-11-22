@@ -5,15 +5,18 @@ import com.arsw.shipwreckeds.controller.WebSocketController;
 import com.arsw.shipwreckeds.model.*;
 import com.arsw.shipwreckeds.model.dto.*;
 import com.arsw.shipwreckeds.service.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import java.util.ArrayList;
-import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -61,8 +64,9 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.createMatch(req);
 
-        assertEquals(400, resp.getStatusCodeValue());
-        assertTrue(((String) resp.getBody()).toLowerCase().contains("inicia sesión") || ((String) resp.getBody()).toLowerCase().contains("inicia sesion"));
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
+        assertTrue(((String) resp.getBody()).toLowerCase().contains("inicia sesión")
+                || ((String) resp.getBody()).toLowerCase().contains("inicia sesion"));
         verify(matchService, never()).createMatch(any());
     }
 
@@ -80,7 +84,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.joinMatch(req);
 
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(returnedMatch, resp.getBody());
         verify(matchService, times(1)).joinMatch("C1", player);
         verify(webSocketController, times(1)).broadcastLobbyUpdate(returnedMatch);
@@ -96,32 +100,32 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.joinMatch(req);
 
-        assertEquals(400, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
         verify(matchService, never()).joinMatch(anyString(), any());
     }
 
     @Test
     void startMatch_notFound_returnsBadRequest() {
-        when(matchService.getMatchByCode("X")).thenReturn(null);
+        when(matchService.updateMatch(eq("X"), ArgumentMatchers.<Function<Match, Match>>any()))
+                .thenThrow(new IllegalArgumentException("Código inválido o partida no encontrada."));
 
         ResponseEntity<?> resp = matchController.startMatch("X", "host");
 
-        assertEquals(400, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
     }
 
     @Test
     void startMatch_onlyHostCanStart_returnsForbidden() {
         Match match = mock(Match.class);
         Player first = mock(Player.class);
-        when(matchService.getMatchByCode("M")).thenReturn(match);
+        mockUpdateMatch("M", match);
         when(match.getPlayers()).thenReturn(List.of(first)); // only one player
         when(first.getUsername()).thenReturn("otherHost");
 
         ResponseEntity<?> resp = matchController.startMatch("M", "notHost");
 
-        assertEquals(403, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
     }
-
 
     @Test
     void startMatch_success_assignsRolesGeneratesNpcsBroadcastsAndStartsTicker() {
@@ -134,9 +138,10 @@ class MatchControllerTest {
         Player p5 = mock(Player.class);
         List<Player> players = List.of(p1, p2, p3, p4, p5);
 
-        when(matchService.getMatchByCode("MOK")).thenReturn(match);
+        mockUpdateMatch("MOK", match);
         when(match.getPlayers()).thenReturn(players);
         when(p1.getUsername()).thenReturn("host123"); // host must be first
+        when(match.getCode()).thenReturn("MOK");
         // return empty npc list initially
         when(match.getNpcs()).thenReturn(new ArrayList<>());
 
@@ -144,13 +149,13 @@ class MatchControllerTest {
         ResponseEntity<?> resp = matchController.startMatch("MOK", "host123");
 
         // assert
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
         verify(roleService, times(1)).assignHumanRoles(match);
         verify(npcService, times(1)).generateNpcs(match);
         verify(match, times(1)).startMatch();
         verify(webSocketController, times(1)).broadcastLobbyUpdate(match);
         verify(webSocketController, times(1)).broadcastGameState(eq(match.getCode()), any());
-        verify(gameEngine, times(1)).startMatchTicker(match);
+        verify(gameEngine, times(1)).startMatchTicker("MOK");
     }
 
     @Test
@@ -159,7 +164,7 @@ class MatchControllerTest {
         Player killer = mock(Player.class);
         Player target = mock(Player.class);
 
-        when(matchService.getMatchByCode("EL")).thenReturn(match);
+        mockUpdateMatch("EL", match);
         when(match.getStatus()).thenReturn(MatchStatus.STARTED);
 
         when(match.getPlayers()).thenReturn(List.of(killer, target));
@@ -182,7 +187,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.eliminate("EL", req);
 
-        assertEquals(403, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
         verify(target, never()).setAlive(false);
     }
 
@@ -192,7 +197,7 @@ class MatchControllerTest {
         Player killer = mock(Player.class);
         Player target = mock(Player.class);
 
-        when(matchService.getMatchByCode("EL2")).thenReturn(match);
+        mockUpdateMatch("EL2", match);
         when(match.getStatus()).thenReturn(MatchStatus.STARTED);
 
         when(match.getPlayers()).thenReturn(List.of(killer, target));
@@ -203,7 +208,7 @@ class MatchControllerTest {
         when(killer.getPosition()).thenReturn(new Position(0.0, 0.0));
 
         when(target.getId()).thenReturn(20L);
-        when(target.isAlive()).thenReturn(true);
+        when(target.isAlive()).thenReturn(true, true, false);
         when(target.isInfiltrator()).thenReturn(false);
         when(target.getPosition()).thenReturn(new Position(5.0, 5.0)); // within elimination range (≈7.07 < 20)
 
@@ -213,7 +218,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.eliminate("EL2", req);
 
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
         // verify that target was marked dead
         verify(target, times(1)).setAlive(false);
         // verify that elimination and gamestate broadcasts happened
@@ -224,7 +229,7 @@ class MatchControllerTest {
     @Test
     void modifyFuel_tooFarFromBoat_returnsForbidden() {
         Match match = mock(Match.class);
-        when(matchService.getMatchByCode("F1")).thenReturn(match);
+        mockUpdateMatch("F1", match);
         when(match.getStatus()).thenReturn(MatchStatus.STARTED);
 
         Player actor = mock(Player.class);
@@ -240,14 +245,14 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.modifyFuel("F1", req);
 
-        assertEquals(403, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
         verify(webSocketController, never()).broadcastGameState(anyString(), any());
     }
 
     @Test
     void modifyFuel_success_whenWindowOpen_updatesAndBroadcasts() {
         Match match = mock(Match.class);
-        when(matchService.getMatchByCode("F2")).thenReturn(match);
+        mockUpdateMatch("F2", match);
         when(match.getStatus()).thenReturn(MatchStatus.STARTED);
 
         Player actor = mock(Player.class);
@@ -273,11 +278,20 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.modifyFuel("F2", req);
 
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertTrue(resp.getBody() instanceof FuelActionResponse);
         FuelActionResponse far = (FuelActionResponse) resp.getBody();
         assertEquals(15.0, far.getFuelPercentage());
         // broadcast happened
         verify(webSocketController, times(1)).broadcastGameState(eq("F2"), any(GameState.class));
+    }
+
+    private void mockUpdateMatch(String code, Match match) {
+        lenient().when(matchService.updateMatch(eq(code), ArgumentMatchers.<Function<Match, Object>>any()))
+                .thenAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
+                    Function<Match, Object> fn = (Function<Match, Object>) invocation.getArgument(1);
+                    return fn.apply(match);
+                });
     }
 }

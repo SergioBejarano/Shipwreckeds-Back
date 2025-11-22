@@ -3,45 +3,36 @@ package com.arsw.shipwreckeds.service;
 import com.arsw.shipwreckeds.model.Match;
 import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.dto.CreateMatchResponse;
+import com.arsw.shipwreckeds.service.cache.MatchCacheRepository;
+import com.arsw.shipwreckeds.service.cache.MatchLockManager;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 /**
- * In-memory match registry used by the MVP backend.
- * <ul>
- * <li>Generates unique alphanumeric codes.</li>
- * <li>Stores active matches in a {@link ConcurrentHashMap}.</li>
- * <li>Validates lobby expiration on join requests.</li>
- * </ul>
- *
- * @author Daniel Ruge
- * @version 22/10/2025
+ * Distributed match registry backed by AWS Valkey (Redis) so multiple backend
+ * instances can share the same mutable game state. Generates unique lobby
+ * codes, validates TTL, and executes state mutations under a Redis-backed
+ * distributed lock to keep the game logic consistent across nodes.
  */
 @Service
 public class MatchService {
 
-    private final Map<String, StoredMatch> matchesByCode = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private static final String ALPHANUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final int CODE_LENGTH = 6;
     private static final long MATCH_TTL_SECONDS = 2 * 60 * 60;
 
-    private static long nextId = 1L;
+    private static final AtomicLong NEXT_ID = new AtomicLong(1L);
 
-    private static class StoredMatch {
-        Match match;
-        long createdAtEpochSec;
-        long ttlSeconds;
+    private final MatchCacheRepository cacheRepository;
+    private final MatchLockManager lockManager;
 
-        StoredMatch(Match match, long createdAtEpochSec, long ttlSeconds) {
-            this.match = match;
-            this.createdAtEpochSec = createdAtEpochSec;
-            this.ttlSeconds = ttlSeconds;
-        }
+    public MatchService(MatchCacheRepository cacheRepository, MatchLockManager lockManager) {
+        this.cacheRepository = cacheRepository;
+        this.lockManager = lockManager;
     }
 
     /**
@@ -60,17 +51,12 @@ public class MatchService {
             if (tries > 50) {
                 throw new IllegalArgumentException("No se pudo generar un código único. Intenta de nuevo.");
             }
-        } while (matchesByCode.containsKey(code));
+        } while (cacheRepository.findActive(code) != null);
 
         // Create the match and add the host
-        Match match = new Match(nextId++, code);
+        Match match = new Match(NEXT_ID.getAndIncrement(), code);
         match.addPlayer(host);
-
-        // Optional future step: pre-generate NPCs — deferred until the match actually
-        // starts
-
-        StoredMatch sm = new StoredMatch(match, Instant.now().getEpochSecond(), MATCH_TTL_SECONDS);
-        matchesByCode.put(code, sm);
+        cacheRepository.save(match, MATCH_TTL_SECONDS);
 
         return new CreateMatchResponse(code);
     }
@@ -86,28 +72,13 @@ public class MatchService {
     public Match joinMatch(String code, Player player) {
         if (code == null || code.trim().isEmpty())
             throw new IllegalArgumentException("Código inválido.");
-        StoredMatch sm = matchesByCode.get(code);
-        if (sm == null)
-            throw new IllegalArgumentException("Código inválido o partida no encontrada.");
-
-        // Check whether the lobby has expired
-        long now = Instant.now().getEpochSecond();
-        if (now > sm.createdAtEpochSec + sm.ttlSeconds) {
-            // Remove the lobby and reject the join attempt
-            matchesByCode.remove(code);
-            throw new IllegalArgumentException("El código ha caducado.");
-        }
-
-        Match match = sm.match;
-
-        synchronized (match) {
+        return updateMatch(code, match -> {
             if (match.getStatus() != null && match.getStatus().name().equals("STARTED")) {
                 throw new IllegalArgumentException("La partida ya ha comenzado.");
             }
             if (match.getPlayers().size() >= 8) {
                 throw new IllegalArgumentException("La partida está llena.");
             }
-            // Prevent duplicate usernames inside the same match
             boolean nameTaken = match.getPlayers().stream()
                     .anyMatch(p -> p.getUsername().equals(player.getUsername()));
             if (nameTaken) {
@@ -115,9 +86,8 @@ public class MatchService {
             }
 
             match.addPlayer(player);
-        }
-
-        return match;
+            return match;
+        });
     }
 
     /**
@@ -128,15 +98,7 @@ public class MatchService {
      * @return match instance or {@code null} if not found or expired
      */
     public Match getMatchByCode(String code) {
-        StoredMatch sm = matchesByCode.get(code);
-        if (sm == null)
-            return null;
-        long now = Instant.now().getEpochSecond();
-        if (now > sm.createdAtEpochSec + sm.ttlSeconds) {
-            matchesByCode.remove(code);
-            return null;
-        }
-        return sm.match;
+        return cacheRepository.findActive(code);
     }
 
     /**
@@ -153,5 +115,27 @@ public class MatchService {
             sb.append(ALPHANUM.charAt(idx));
         }
         return sb.toString();
+    }
+
+    public void saveMatch(Match match) {
+        if (match != null) {
+            cacheRepository.save(match, MATCH_TTL_SECONDS);
+        }
+    }
+
+    public void removeMatch(String code) {
+        cacheRepository.delete(code);
+    }
+
+    public <T> T updateMatch(String code, Function<Match, T> updater) {
+        return lockManager.withLock(code, () -> {
+            Match match = cacheRepository.findActive(code);
+            if (match == null) {
+                throw new IllegalArgumentException("Código inválido o partida no encontrada.");
+            }
+            T result = updater.apply(match);
+            cacheRepository.save(match, MATCH_TTL_SECONDS);
+            return result;
+        });
     }
 }
