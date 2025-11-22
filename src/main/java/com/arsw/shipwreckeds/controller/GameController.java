@@ -63,77 +63,74 @@ public class GameController {
         if (cmd == null || cmd.getUsername() == null || cmd.getAvatarId() == null || cmd.getDirection() == null)
             return;
 
-        Match match = matchService.getMatchByCode(code);
-        if (match == null)
-            return;
-        if (match.getStatus() == null || !match.getStatus().name().equals("STARTED"))
-            return;
-
         // validate session
         Player session = authService.getPlayer(cmd.getUsername());
         if (session == null)
             return;
+        try {
+            GameState updatedState = matchService.updateMatch(code, match -> {
+                if (match.getStatus() == null || !match.getStatus().name().equals("STARTED")) {
+                    return null;
+                }
 
-        // find the player's avatar
-        Player target = match.getPlayers().stream()
-                .filter(p -> p.getId().equals(cmd.getAvatarId()))
-                .findFirst().orElse(null);
-        if (target == null)
-            return; // not found or maybe NPC
+                Player target = match.getPlayers().stream()
+                        .filter(p -> p.getId().equals(cmd.getAvatarId()))
+                        .findFirst().orElse(null);
+                if (target == null) {
+                    return null;
+                }
 
-        // ownership check
-        if (!target.getUsername().equals(cmd.getUsername())) {
-            // ignoring unauthorized movement attempt
-            return;
-        }
+                if (!target.getUsername().equals(cmd.getUsername())) {
+                    return null;
+                }
 
-        // rate limit: 8 Hz -> 125 ms
-        long now = System.currentTimeMillis();
-        Long last = lastMoveTsByAvatar.getOrDefault(target.getId(), 0L);
-        if (now - last < 100) { // allow slightly faster 10Hz tolerance
-            return;
-        }
-        lastMoveTsByAvatar.put(target.getId(), now);
+                long now = System.currentTimeMillis();
+                Long last = lastMoveTsByAvatar.getOrDefault(target.getId(), 0L);
+                if (now - last < 100) {
+                    return null;
+                }
 
-        // normalize direction
-        double dx = cmd.getDirection().getDx();
-        double dy = cmd.getDirection().getDy();
-        double len = Math.hypot(dx, dy);
-        if (Double.isNaN(len) || len < 1e-6)
-            return;
-        dx /= len;
-        dy /= len;
+                double dx = cmd.getDirection().getDx();
+                double dy = cmd.getDirection().getDy();
+                double len = Math.hypot(dx, dy);
+                if (Double.isNaN(len) || len < 1e-6)
+                    return null;
+                dx /= len;
+                dy /= len;
 
-        // step size
-        double step = ISLAND_RADIUS * 0.035;
+                double step = ISLAND_RADIUS * 0.035;
 
-        synchronized (match) {
-            Position pos = target.getPosition();
-            if (pos == null) {
-                pos = new Position(0.0, 0.0);
-                target.setPosition(pos);
+                Position pos = target.getPosition();
+                if (pos == null) {
+                    pos = new Position(0.0, 0.0);
+                    target.setPosition(pos);
+                }
+                double proposedX = pos.getX() + dx * step;
+                double proposedY = pos.getY() + dy * step;
+                double distToCenter = Math.hypot(proposedX, proposedY);
+                double margin = 0.5;
+                if (distToCenter > ISLAND_RADIUS - margin) {
+                    double vecX = proposedX;
+                    double vecY = proposedY;
+                    double plen = Math.hypot(vecX, vecY);
+                    if (plen == 0)
+                        plen = 1;
+                    double clampedX = (vecX / plen) * (ISLAND_RADIUS - margin);
+                    double clampedY = (vecY / plen) * (ISLAND_RADIUS - margin);
+                    target.moveTo(new Position(clampedX, clampedY));
+                } else {
+                    target.moveTo(new Position(proposedX, proposedY));
+                }
+
+                lastMoveTsByAvatar.put(target.getId(), now);
+                return buildGameState(match);
+            });
+
+            if (updatedState != null) {
+                webSocketController.broadcastGameState(code, updatedState);
             }
-            double proposedX = pos.getX() + dx * step;
-            double proposedY = pos.getY() + dy * step;
-            double distToCenter = Math.hypot(proposedX - 0.0, proposedY - 0.0);
-            double margin = 0.5;
-            if (distToCenter > ISLAND_RADIUS - margin) {
-                double vecX = proposedX;
-                double vecY = proposedY;
-                double plen = Math.hypot(vecX, vecY);
-                if (plen == 0)
-                    plen = 1;
-                double clampedX = (vecX / plen) * (ISLAND_RADIUS - margin);
-                double clampedY = (vecY / plen) * (ISLAND_RADIUS - margin);
-                // update
-                target.moveTo(new Position(clampedX, clampedY));
-            } else {
-                target.moveTo(new Position(proposedX, proposedY));
-            }
-
-            // build GameState snapshot
-            GameState gs = buildGameState(match);
-            webSocketController.broadcastGameState(code, gs);
+        } catch (IllegalArgumentException ignored) {
+            // No-op: match no longer exists or not ready
         }
     }
 

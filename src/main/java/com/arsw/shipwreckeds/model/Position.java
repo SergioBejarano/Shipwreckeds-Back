@@ -2,6 +2,7 @@ package com.arsw.shipwreckeds.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * Represents a point within the island map using X and Y coordinates.
@@ -10,6 +11,7 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class Position {
 
     private double x;

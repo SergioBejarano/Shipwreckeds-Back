@@ -8,6 +8,7 @@ import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.AvatarState;
 import com.arsw.shipwreckeds.model.dto.GameState;
+import com.arsw.shipwreckeds.service.MatchService;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
@@ -40,9 +41,11 @@ public class GameEngine {
     private final Map<String, ScheduledFuture<?>> voteTimers = new ConcurrentHashMap<>();
     private final Map<String, Map<Long, Position>> npcTargetsByMatch = new ConcurrentHashMap<>();
     private final WebSocketController ws;
+    private final MatchService matchService;
 
-    public GameEngine(WebSocketController ws) {
+    public GameEngine(WebSocketController ws, MatchService matchService) {
         this.ws = ws;
+        this.matchService = matchService;
     }
 
     /**
@@ -51,35 +54,48 @@ public class GameEngine {
      *
      * @param match match to tick
      */
-    public void startMatchTicker(Match match) {
-        if (match == null)
+    public void startMatchTicker(String code) {
+        if (code == null || code.isBlank())
             return;
-        String code = match.getCode();
         stopMatchTicker(code);
         npcTargetsByMatch.remove(code);
 
         Runnable tick = () -> {
-            synchronized (match) {
-                if (match.getStatus() != null && match.getStatus().name().equals("STARTED")) {
-                    int t = match.getTimerSeconds();
-                    if (t <= 0) {
-                        if (match.getWinnerMessage() == null || match.getWinnerMessage().isBlank()) {
-                            match.setWinnerMessage("Se acabó el tiempo, ganó el infiltrado.");
-                        }
-                        match.endMatch();
-                        // broadcast final state including winner message
-                        ws.broadcastGameState(code, buildGameState(match));
-                        stopMatchTicker(code);
-                        return;
+            TickResult result;
+            try {
+                result = matchService.updateMatch(code, current -> {
+                    if (current.getStatus() == null || !current.getStatus().name().equals("STARTED")) {
+                        return TickResult.stop(null);
                     }
-                    updateNpcMovement(match, 1.0);
-                    match.setTimerSeconds(t - 1);
-                    // broadcast updated GameState with new timer
-                    ws.broadcastGameState(code, buildGameState(match));
-                } else {
-                    // if match not started, cancel
-                    stopMatchTicker(code);
-                }
+                    int t = current.getTimerSeconds();
+                    if (t <= 0) {
+                        if (current.getWinnerMessage() == null || current.getWinnerMessage().isBlank()) {
+                            current.setWinnerMessage("Se acabó el tiempo, ganó el infiltrado.");
+                        }
+                        current.endMatch();
+                        return TickResult.stop(buildGameState(current));
+                    }
+                    updateNpcMovement(current, 1.0);
+                    current.setTimerSeconds(t - 1);
+                    return TickResult.keepRunning(buildGameState(current));
+                });
+            } catch (IllegalArgumentException ex) {
+                // match disappeared
+                stopMatchTicker(code);
+                return;
+            }
+
+            if (result == null) {
+                stopMatchTicker(code);
+                return;
+            }
+
+            if (result.gameState != null) {
+                ws.broadcastGameState(code, result.gameState);
+            }
+
+            if (result.stop) {
+                stopMatchTicker(code);
             }
         };
 
@@ -105,16 +121,13 @@ public class GameEngine {
      * @param match    match owning the timeout
      * @param callback logic to execute when the timer expires
      */
-    public void scheduleVoteTimeout(Match match, Runnable callback) {
-        if (match == null) {
+    public void scheduleVoteTimeout(String code, Runnable callback) {
+        if (code == null || code.isBlank()) {
             return;
         }
-        String code = match.getCode();
         cancelVoteTimeout(code);
         ScheduledFuture<?> future = scheduler.schedule(() -> {
-            synchronized (match) {
-                callback.run();
-            }
+            callback.run();
         }, Match.VOTE_DURATION_SECONDS, TimeUnit.SECONDS);
         voteTimers.put(code, future);
     }
@@ -266,5 +279,15 @@ public class GameEngine {
         for (ScheduledFuture<?> f : voteTimers.values())
             f.cancel(false);
         scheduler.shutdownNow();
+    }
+
+    private record TickResult(boolean stop, GameState gameState) {
+        private static TickResult stop(GameState state) {
+            return new TickResult(true, state);
+        }
+
+        private static TickResult keepRunning(GameState state) {
+            return new TickResult(false, state);
+        }
     }
 }

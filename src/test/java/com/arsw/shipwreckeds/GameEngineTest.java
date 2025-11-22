@@ -3,6 +3,7 @@ package com.arsw.shipwreckeds;
 import com.arsw.shipwreckeds.controller.WebSocketController;
 import com.arsw.shipwreckeds.model.*;
 import com.arsw.shipwreckeds.service.GameEngine;
+import com.arsw.shipwreckeds.service.MatchService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,11 +28,14 @@ class GameEngineTest {
     @Mock
     private WebSocketController ws;
 
+    @Mock
+    private MatchService matchService;
+
     private GameEngine gameEngine;
 
     @BeforeEach
     void setUp() {
-        gameEngine = new GameEngine(ws);
+        gameEngine = new GameEngine(ws, matchService);
     }
 
     @Test

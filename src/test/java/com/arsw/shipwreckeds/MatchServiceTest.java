@@ -4,66 +4,63 @@ import com.arsw.shipwreckeds.model.Match;
 import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.dto.CreateMatchResponse;
 import com.arsw.shipwreckeds.service.MatchService;
+import com.arsw.shipwreckeds.service.cache.MatchCacheRepository;
+import com.arsw.shipwreckeds.service.cache.MatchLockManager;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.lang.reflect.Field;
-import java.time.Instant;
-import java.util.Map;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Pruebas unitarias para MatchService.
- *
- *
- * @author Daniel Ruge
- * @version 2025-10-29
+ * Pruebas unitarias para MatchService en su versión respaldada por cache
+ * distribuido.
  */
 class MatchServiceTest {
 
+    private MatchCacheRepository cacheRepository;
+    private MatchLockManager lockManager;
     private MatchService matchService;
 
     @BeforeEach
     void setUp() {
-        matchService = new MatchService();
+        cacheRepository = mock(MatchCacheRepository.class);
+        lockManager = mock(MatchLockManager.class);
+        matchService = new MatchService(cacheRepository, lockManager);
+
+        lenient().when(lockManager.withLock(anyString(), ArgumentMatchers.<Supplier<Object>>any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            Supplier<Object> supplier = (Supplier<Object>) inv.getArgument(1);
+            return supplier.get();
+        });
     }
 
     @Test
     void createMatch_success_generatesCodeAndRegistersMatch() {
-        Player host = mock(Player.class);
-        when(host.getUsername()).thenReturn("hostA");
+        Player host = new Player();
+        host.setUsername("hostA");
+        when(cacheRepository.findActive(anyString())).thenReturn(null);
 
         CreateMatchResponse resp = matchService.createMatch(host);
+
         assertNotNull(resp);
-        String code = resp.getCode();
-        assertNotNull(code);
-        assertEquals(6, code.length(), "El código debe tener longitud " + 6);
+        assertNotNull(resp.getCode());
+        assertEquals(6, resp.getCode().length());
 
-        Match stored = matchService.getMatchByCode(code);
-        assertNotNull(stored, "La partida creada debería estar disponible por código");
-        // the host should have been added to the match
-        assertTrue(stored.getPlayers().stream().anyMatch(p -> p == host || p.getUsername().equals("hostA")));
-    }
-
-    @Test
-    void joinMatch_success_addsPlayerToMatch() {
-        Player host = mock(Player.class);
-        when(host.getUsername()).thenReturn("hostB");
-        CreateMatchResponse resp = matchService.createMatch(host);
-        String code = resp.getCode();
-
-        Player joiner = mock(Player.class);
-        when(joiner.getUsername()).thenReturn("player1");
-
-        Match returned = matchService.joinMatch(code, joiner);
-        assertNotNull(returned);
-        assertTrue(returned.getPlayers().stream().anyMatch(p -> p == joiner || p.getUsername().equals("player1")));
+        ArgumentCaptor<Match> matchCaptor = ArgumentCaptor.forClass(Match.class);
+        verify(cacheRepository).save(matchCaptor.capture(), eq(7200L));
+        Match stored = matchCaptor.getValue();
+        assertEquals(resp.getCode(), stored.getCode());
+        assertEquals("hostA", stored.getPlayers().get(0).getUsername());
     }
 
     @Test
     void joinMatch_invalidCode_throwsIllegalArgumentException() {
-        Player p = mock(Player.class);
-        when(p.getUsername()).thenReturn("x");
+        Player p = new Player();
+        p.setUsername("x");
 
         IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class,
                 () -> matchService.joinMatch(null, p));
@@ -72,114 +69,72 @@ class MatchServiceTest {
         IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class,
                 () -> matchService.joinMatch("   ", p));
         assertEquals("Código inválido.", ex2.getMessage());
-
-        IllegalArgumentException ex3 = assertThrows(IllegalArgumentException.class,
-                () -> matchService.joinMatch("NOEX", p));
-        assertEquals("Código inválido o partida no encontrada.", ex3.getMessage());
     }
 
     @Test
-    void joinMatch_expired_throwsAndRemovesFromRegistry() throws Exception {
-        Player host = mock(Player.class);
-        when(host.getUsername()).thenReturn("hostC");
-        CreateMatchResponse resp = matchService.createMatch(host);
-        String code = resp.getCode();
-
-        // Use reflection to set stored.createdAtEpochSec to far past so it is expired
-        Field matchesField = MatchService.class.getDeclaredField("matchesByCode");
-        matchesField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) matchesField.get(matchService);
-        Object storedMatch = map.get(code);
-
-        // storedMatch is an instance of the private static inner class StoredMatch
-        Class<?> storedCls = storedMatch.getClass();
-        Field createdAtField = storedCls.getDeclaredField("createdAtEpochSec");
-        createdAtField.setAccessible(true);
-        Field ttlField = storedCls.getDeclaredField("ttlSeconds");
-        ttlField.setAccessible(true);
-        long ttl = (long) ttlField.get(storedMatch);
-
-        long past = Instant.now().getEpochSecond() - (ttl + 10);
-        createdAtField.set(storedMatch, past);
-
-        Player joiner = mock(Player.class);
-        when(joiner.getUsername()).thenReturn("playerX");
+    void joinMatch_notFound_throwsIllegalArgumentException() {
+        Player p = new Player();
+        p.setUsername("x");
+        when(cacheRepository.findActive("NOEX")).thenReturn(null);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> matchService.joinMatch(code, joiner));
-        assertEquals("El código ha caducado.", ex.getMessage());
-
-        // after expiration, getMatchByCode should return null and the entry removed
-        assertNull(matchService.getMatchByCode(code), "La entrada expirada debería haberse eliminado");
-        assertFalse(map.containsKey(code), "El mapa interno no debe contener el código después de caducar");
+                () -> matchService.joinMatch("NOEX", p));
+        assertEquals("Código inválido o partida no encontrada.", ex.getMessage());
+        verify(cacheRepository, never()).save(any(Match.class), anyLong());
     }
 
     @Test
-    void getMatchByCode_expired_prunesAndReturnsNull() throws Exception {
-        Player host = mock(Player.class);
-        when(host.getUsername()).thenReturn("hostD");
-        CreateMatchResponse resp = matchService.createMatch(host);
-        String code = resp.getCode();
+    void joinMatch_success_addsPlayerToMatch() {
+        Match existing = new Match(10L, "JOINME");
+        Player host = new Player();
+        host.setUsername("host");
+        existing.addPlayer(host);
+        when(cacheRepository.findActive("JOINME")).thenReturn(existing);
 
-        // expire it similarly
-        Field matchesField = MatchService.class.getDeclaredField("matchesByCode");
-        matchesField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) matchesField.get(matchService);
-        Object storedMatch = map.get(code);
-        Class<?> storedCls = storedMatch.getClass();
-        Field createdAtField = storedCls.getDeclaredField("createdAtEpochSec");
-        createdAtField.setAccessible(true);
-        Field ttlField = storedCls.getDeclaredField("ttlSeconds");
-        ttlField.setAccessible(true);
-        long ttl = (long) ttlField.get(storedMatch);
-        long past = Instant.now().getEpochSecond() - (ttl + 5);
-        createdAtField.set(storedMatch, past);
+        Player joiner = new Player();
+        joiner.setUsername("player1");
 
-        // getMatchByCode should prune and return null
-        assertNull(matchService.getMatchByCode(code));
-        assertFalse(map.containsKey(code));
+        Match returned = matchService.joinMatch("JOINME", joiner);
+
+        assertSame(existing, returned);
+        assertEquals(2, returned.getPlayers().size());
+        assertTrue(returned.getPlayers().stream().anyMatch(p -> "player1".equals(p.getUsername())));
+        verify(cacheRepository).save(existing, 7200L);
     }
 
     @Test
     void joinMatch_fullMatch_throwsWhenOverCapacity() {
-        Player host = mock(Player.class);
-        when(host.getUsername()).thenReturn("hostE");
-        CreateMatchResponse resp = matchService.createMatch(host);
-        String code = resp.getCode();
+        Match full = new Match(11L, "FULLER");
+        IntStream.range(0, 8).forEach(i -> {
+            Player pl = new Player();
+            pl.setUsername("p" + i);
+            full.addPlayer(pl);
+        });
+        when(cacheRepository.findActive("FULLER")).thenReturn(full);
 
-        // add 7 more players to reach 8 total (host + 7 = 8)
-        for (int i = 0; i < 7; i++) {
-            Player p = mock(Player.class);
-            when(p.getUsername()).thenReturn("p" + i);
-            matchService.joinMatch(code, p);
-        }
-
-        Player next = mock(Player.class);
-        when(next.getUsername()).thenReturn("overflow");
+        Player next = new Player();
+        next.setUsername("overflow");
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> matchService.joinMatch(code, next));
+                () -> matchService.joinMatch("FULLER", next));
         assertEquals("La partida está llena.", ex.getMessage());
+        verify(cacheRepository, never()).save(full, 7200L);
     }
 
     @Test
     void joinMatch_duplicateName_throws() {
-        Player host = mock(Player.class);
-        when(host.getUsername()).thenReturn("hostF");
-        CreateMatchResponse resp = matchService.createMatch(host);
-        String code = resp.getCode();
+        Match match = new Match(12L, "DUPL");
+        Player first = new Player();
+        first.setUsername("sameName");
+        match.addPlayer(first);
+        when(cacheRepository.findActive("DUPL")).thenReturn(match);
 
-        Player p1 = mock(Player.class);
-        when(p1.getUsername()).thenReturn("sameName");
-        matchService.joinMatch(code, p1);
-
-        Player p2 = mock(Player.class);
-        when(p2.getUsername()).thenReturn("sameName");
+        Player second = new Player();
+        second.setUsername("sameName");
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> matchService.joinMatch(code, p2));
+                () -> matchService.joinMatch("DUPL", second));
         assertEquals("Ya hay un jugador con ese nombre en la partida.", ex.getMessage());
+        verify(cacheRepository, never()).save(match, 7200L);
     }
 }
