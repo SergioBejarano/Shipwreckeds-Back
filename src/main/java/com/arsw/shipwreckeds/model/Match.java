@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,6 +19,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Match {
 
     public static final int MATCH_DURATION_SECONDS = 4 * 60;
@@ -169,6 +173,7 @@ public class Match {
      *
      * @return {@code true} when the window is open
      */
+    @JsonIgnore
     public synchronized boolean isFuelWindowOpenNow() {
         if (status != MatchStatus.STARTED || timerSeconds <= 0) {
             return false;
@@ -186,6 +191,7 @@ public class Match {
      *
      * @return remaining seconds in the current fuel cycle
      */
+    @JsonIgnore
     public synchronized int getFuelWindowSecondsRemaining() {
         if (status != MatchStatus.STARTED || timerSeconds <= 0) {
             return 0;
