@@ -1,6 +1,8 @@
 package com.arsw.shipwreckeds.service.cache;
 
 import com.arsw.shipwreckeds.model.Match;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -9,6 +11,7 @@ import java.time.Instant;
  * Wrapper stored in Valkey/Redis containing the serialized {@link Match}
  * alongside basic metadata to manage TTL locally.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MatchCachePayload implements Serializable {
 
     private Match match;
@@ -48,6 +51,7 @@ public class MatchCachePayload implements Serializable {
         this.ttlSeconds = ttlSeconds;
     }
 
+    @JsonIgnore
     public boolean isExpired() {
         long now = Instant.now().getEpochSecond();
         return ttlSeconds > 0 && now > (createdAtEpochSec + ttlSeconds);
