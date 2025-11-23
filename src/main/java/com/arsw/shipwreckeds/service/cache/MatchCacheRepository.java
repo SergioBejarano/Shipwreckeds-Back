@@ -3,6 +3,7 @@ package com.arsw.shipwreckeds.service.cache;
 import com.arsw.shipwreckeds.model.Match;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,8 @@ public class MatchCacheRepository {
 
     private final RedisTemplate<String, MatchCachePayload> redisTemplate;
 
-    public MatchCacheRepository(RedisTemplate<String, MatchCachePayload> redisTemplate) {
+    public MatchCacheRepository(
+            @Qualifier("matchRedisTemplate") RedisTemplate<String, MatchCachePayload> redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 

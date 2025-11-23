@@ -5,6 +5,8 @@ import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.dto.CognitoTokens;
 import com.arsw.shipwreckeds.model.dto.LoginResponse;
 import com.arsw.shipwreckeds.service.AuthService;
+import com.arsw.shipwreckeds.service.session.PlayerSessionPayload;
+import com.arsw.shipwreckeds.service.session.PlayerSessionStore;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -14,12 +16,14 @@ import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Pruebas unitarias para AuthService.
@@ -39,14 +43,16 @@ class AuthServiceTest {
     @Mock
     private CognitoAuthenticationClient cognitoClient;
 
-    @InjectMocks
     private AuthService authService;
+    private InMemoryPlayerSessionStore sessionStore;
 
     private CognitoTokens tokens;
 
     @BeforeEach
     void setUp() throws Exception {
         tokens = tokensFor("ana");
+        sessionStore = new InMemoryPlayerSessionStore();
+        authService = new AuthService(cognitoClient, sessionStore);
     }
 
     @Test
@@ -180,6 +186,58 @@ class AuthServiceTest {
             return new CognitoTokens("access-" + username, signedJWT.serialize(), "refresh", 3600L, "Bearer");
         } catch (JOSEException e) {
             throw new RuntimeException("No fue posible firmar el token de prueba", e);
+        }
+    }
+
+    private static class InMemoryPlayerSessionStore implements PlayerSessionStore {
+
+        private final Map<String, PlayerSessionPayload> sessions = new ConcurrentHashMap<>();
+
+        @Override
+        public boolean hasActiveSession(String username) {
+            return getPayload(username) != null;
+        }
+
+        @Override
+        public boolean createSession(Player player, CognitoTokens tokens, long ttlSeconds) {
+            PlayerSessionPayload payload = new PlayerSessionPayload(player, tokens,
+                    System.currentTimeMillis() / 1000, ttlSeconds);
+            return sessions.putIfAbsent(player.getUsername(), payload) == null;
+        }
+
+        @Override
+        public Player getPlayer(String username) {
+            PlayerSessionPayload payload = getPayload(username);
+            return payload != null ? payload.getPlayer() : null;
+        }
+
+        @Override
+        public CognitoTokens getTokens(String username) {
+            PlayerSessionPayload payload = getPayload(username);
+            return payload != null ? payload.getTokens() : null;
+        }
+
+        @Override
+        public boolean deleteSession(String username) {
+            if (username == null) {
+                return false;
+            }
+            return sessions.remove(username) != null;
+        }
+
+        private PlayerSessionPayload getPayload(String username) {
+            if (username == null) {
+                return null;
+            }
+            PlayerSessionPayload payload = sessions.get(username);
+            if (payload == null) {
+                return null;
+            }
+            if (payload.isExpired()) {
+                sessions.remove(username);
+                return null;
+            }
+            return payload;
         }
     }
 }

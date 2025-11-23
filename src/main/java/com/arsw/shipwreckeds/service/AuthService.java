@@ -4,14 +4,13 @@ import com.arsw.shipwreckeds.integration.cognito.CognitoAuthenticationClient;
 import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.dto.CognitoTokens;
 import com.arsw.shipwreckeds.model.dto.LoginResponse;
+import com.arsw.shipwreckeds.service.session.PlayerSessionStore;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.text.ParseException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -26,14 +25,13 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class AuthService {
 
-    // ConcurrentHashMap para seguridad en concurrencia (múltiples requests)
-    private final Map<String, Player> loggedPlayers = new ConcurrentHashMap<>();
-    private final Map<String, CognitoTokens> sessionTokens = new ConcurrentHashMap<>();
-    private final AtomicLong nextId = new AtomicLong(1);
+    private final AtomicLong nextId = new AtomicLong(System.currentTimeMillis());
     private final CognitoAuthenticationClient cognitoAuthenticationClient;
+    private final PlayerSessionStore sessionStore;
 
-    public AuthService(CognitoAuthenticationClient cognitoAuthenticationClient) {
+    public AuthService(CognitoAuthenticationClient cognitoAuthenticationClient, PlayerSessionStore sessionStore) {
         this.cognitoAuthenticationClient = cognitoAuthenticationClient;
+        this.sessionStore = sessionStore;
     }
 
     /**
@@ -54,7 +52,7 @@ public class AuthService {
             throw new IllegalArgumentException("Por favor ingresa tu nombre y contraseña para continuar.");
         }
 
-        if (loggedPlayers.containsKey(username)) {
+        if (sessionStore.hasActiveSession(username)) {
             throw new IllegalArgumentException("Usuario ya conectado desde otro cliente.");
         }
 
@@ -85,9 +83,9 @@ public class AuthService {
      *         username
      */
     public Player getPlayer(String username) {
-        if (username == null)
+        if (!StringUtils.hasText(username))
             return null;
-        return loggedPlayers.get(username);
+        return sessionStore.getPlayer(username);
     }
 
     /**
@@ -97,17 +95,16 @@ public class AuthService {
      * @return {@code true} if a session was removed, otherwise {@code false}
      */
     public boolean logout(String username) {
-        if (username == null)
+        if (!StringUtils.hasText(username)) {
             return false;
-        boolean removed = loggedPlayers.remove(username) != null;
-        sessionTokens.remove(username);
-        return removed;
+        }
+        return sessionStore.deleteSession(username);
     }
 
     public CognitoTokens getTokens(String username) {
-        if (username == null)
+        if (!StringUtils.hasText(username))
             return null;
-        return sessionTokens.get(username);
+        return sessionStore.getTokens(username);
     }
 
     private Player registerSession(String username, CognitoTokens tokens) {
@@ -116,13 +113,20 @@ public class AuthService {
         }
 
         Player candidate = new Player(nextId.getAndIncrement(), username, "default-skin", null);
-        Player previous = loggedPlayers.putIfAbsent(username, candidate);
-        if (previous != null) {
+        long ttlSeconds = resolveTtl(tokens);
+        boolean stored = sessionStore.createSession(candidate, tokens, ttlSeconds);
+        if (!stored) {
             throw new IllegalArgumentException("Usuario ya conectado desde otro cliente.");
         }
-        sessionTokens.put(username, tokens);
         System.out.println("Jugador conectado: " + username);
         return candidate;
+    }
+
+    private long resolveTtl(CognitoTokens tokens) {
+        if (tokens != null && tokens.expiresIn() != null && tokens.expiresIn() > 0) {
+            return tokens.expiresIn();
+        }
+        return PlayerSessionStore.DEFAULT_TTL_SECONDS;
     }
 
     private String resolveUsername(CognitoTokens tokens) {

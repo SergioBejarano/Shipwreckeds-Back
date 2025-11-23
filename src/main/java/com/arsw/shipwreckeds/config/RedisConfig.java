@@ -1,6 +1,7 @@
 package com.arsw.shipwreckeds.config;
 
 import com.arsw.shipwreckeds.service.cache.MatchCachePayload;
+import com.arsw.shipwreckeds.service.session.PlayerSessionPayload;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -12,9 +13,23 @@ import org.springframework.integration.redis.util.RedisLockRegistry;
 @Configuration
 public class RedisConfig {
 
-    @Bean
+    @Bean("matchRedisTemplate")
     public RedisTemplate<String, MatchCachePayload> matchRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, MatchCachePayload> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        GenericJackson2JsonRedisSerializer valueSerializer = new GenericJackson2JsonRedisSerializer();
+        template.setValueSerializer(valueSerializer);
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(valueSerializer);
+        template.afterPropertiesSet();
+        return template;
+    }
+
+    @Bean("playerSessionRedisTemplate")
+    public RedisTemplate<String, PlayerSessionPayload> playerSessionRedisTemplate(
+            RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, PlayerSessionPayload> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
         GenericJackson2JsonRedisSerializer valueSerializer = new GenericJackson2JsonRedisSerializer();
