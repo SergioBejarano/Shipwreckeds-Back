@@ -172,6 +172,9 @@ public class GameController {
         // Winner message propagated to the frontend when available
         String winnerMessage = match.getWinnerMessage();
 
+        boolean votingActive = match.isVotingActive();
+        long voteDeadline = votingActive ? match.getVoteStartEpochMs() + Match.VOTE_DURATION_SECONDS * 1000L : 0L;
+        List<AvatarState> voteOptions = votingActive ? buildVoteOptions(match) : null;
         return new GameState(
                 match.getCode(),
                 System.currentTimeMillis(),
@@ -184,11 +187,11 @@ public class GameController {
                 winnerMessage,
                 match.isFuelWindowOpenNow(),
                 match.getFuelWindowSecondsRemaining(),
-                match.isVotingActive(),
-                match.isVotingActive()
-                        ? match.getVoteStartEpochMs() + Match.VOTE_DURATION_SECONDS * 1000L
-                        : 0L,
-                match.isVotingActive() ? buildVoteOptions(match) : null);
+                votingActive,
+                voteDeadline,
+                voteOptions,
+                match.getLastVoteResult(),
+                match.getLastVoteResultEpochMs());
     }
 
     private List<AvatarState> buildVoteOptions(Match match) {

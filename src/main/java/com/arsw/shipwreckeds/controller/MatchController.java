@@ -264,6 +264,8 @@ public class MatchController {
         boolean votingActive = match.isVotingActive();
         long voteEndsAt = votingActive ? match.getVoteStartEpochMs() + Match.VOTE_DURATION_SECONDS * 1000L : 0L;
         List<AvatarState> voteOptions = votingActive ? buildVoteOptions(match) : null;
+        VoteResult lastVoteResult = match.getLastVoteResult();
+        long lastVoteResultEpoch = match.getLastVoteResultEpochMs();
         return new GameState(
                 match.getCode(),
                 System.currentTimeMillis(),
@@ -278,7 +280,9 @@ public class MatchController {
                 match.getFuelWindowSecondsRemaining(),
                 votingActive,
                 voteEndsAt,
-                voteOptions);
+                voteOptions,
+                lastVoteResult,
+                lastVoteResultEpoch);
 
     }
 
@@ -379,6 +383,9 @@ public class MatchController {
                                     "Un jugador humano fue expulsado por mayoría.", abstentions);
                         }
 
+                        match.setLastVoteResult(result);
+                        match.setLastVoteResultEpochMs(System.currentTimeMillis());
+
                         return new VoteResultContext(result, buildGameStateForMatch(match));
                     }
 
@@ -401,6 +408,8 @@ public class MatchController {
 
                         VoteResult result = new VoteResult(counts, leadingId, "npc",
                                 resultMessage, abstentions);
+                        match.setLastVoteResult(result);
+                        match.setLastVoteResultEpochMs(System.currentTimeMillis());
                         return new VoteResultContext(result, buildGameStateForMatch(match));
                     }
                 }
@@ -426,6 +435,8 @@ public class MatchController {
                 }
 
                 VoteResult result = new VoteResult(counts, null, "none", message, abstentions);
+                match.setLastVoteResult(result);
+                match.setLastVoteResultEpochMs(System.currentTimeMillis());
                 return new VoteResultContext(result, buildGameStateForMatch(match));
             });
         } catch (IllegalArgumentException e) {

@@ -6,6 +6,7 @@ import java.util.Random;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.arsw.shipwreckeds.model.dto.VoteResult;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -38,6 +39,8 @@ public class Match {
     private boolean votingActive;
     private java.util.Map<String, Long> votesByPlayer;
     private long voteStartEpochMs;
+    private VoteResult lastVoteResult;
+    private long lastVoteResultEpochMs;
 
     // Winner message broadcast to clients when the match concludes
     private String winnerMessage;
@@ -60,6 +63,8 @@ public class Match {
         this.fuelPercentage = 0.0;
         this.winnerMessage = null;
         this.voteStartEpochMs = 0L;
+        this.lastVoteResult = null;
+        this.lastVoteResultEpochMs = 0L;
     }
 
     /**
@@ -227,6 +232,8 @@ public class Match {
             this.votesByPlayer = new java.util.concurrent.ConcurrentHashMap<>();
         this.votesByPlayer.clear();
         this.voteStartEpochMs = System.currentTimeMillis();
+        this.lastVoteResult = null;
+        this.lastVoteResultEpochMs = 0L;
         System.out.println("Votación iniciada para partida " + this.code);
     }
 

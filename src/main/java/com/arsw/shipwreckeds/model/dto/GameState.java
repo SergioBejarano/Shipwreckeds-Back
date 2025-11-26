@@ -7,6 +7,8 @@ import lombok.Setter;
 
 import java.util.List;
 
+import com.arsw.shipwreckeds.model.dto.VoteResult;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,6 +28,8 @@ public class GameState {
     private boolean votingActive;
     private long voteEndsAtEpochMs;
     private List<AvatarState> voteOptions;
+    private VoteResult lastVoteResult;
+    private long lastVoteResultEpochMs;
 
     @Getter
     @Setter

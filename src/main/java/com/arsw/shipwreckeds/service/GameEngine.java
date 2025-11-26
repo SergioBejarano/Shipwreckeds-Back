@@ -191,7 +191,9 @@ public class GameEngine {
                 match.getFuelWindowSecondsRemaining(),
                 votingActive,
                 voteEndsAt,
-                voteOptions);
+                voteOptions,
+                match.getLastVoteResult(),
+                match.getLastVoteResultEpochMs());
     }
 
     /**
