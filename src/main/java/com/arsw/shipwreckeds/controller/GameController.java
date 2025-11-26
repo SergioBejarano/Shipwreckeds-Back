@@ -161,8 +161,8 @@ public class GameController {
             Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            AvatarState a = new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName());
-            avatars.add(a);
+            avatars.add(new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(),
+                    n.getDisplayName()));
         }
 
         GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
@@ -183,7 +183,33 @@ public class GameController {
                 boat,
                 winnerMessage,
                 match.isFuelWindowOpenNow(),
-                match.getFuelWindowSecondsRemaining());
+                match.getFuelWindowSecondsRemaining(),
+                match.isVotingActive(),
+                match.isVotingActive()
+                        ? match.getVoteStartEpochMs() + Match.VOTE_DURATION_SECONDS * 1000L
+                        : 0L,
+                match.isVotingActive() ? buildVoteOptions(match) : null);
+    }
+
+    private List<AvatarState> buildVoteOptions(Match match) {
+        List<AvatarState> options = new ArrayList<>();
+        for (Npc npc : match.getNpcs()) {
+            Position pos = npc.getPosition();
+            double x = pos != null ? pos.getX() : 0.0;
+            double y = pos != null ? pos.getY() : 0.0;
+            options.add(new AvatarState(npc.getId(), "npc", null, x, y, npc.isInfiltrator(), npc.isActive(),
+                    npc.getDisplayName()));
+        }
+        for (Player p : match.getPlayers()) {
+            if (p.isInfiltrator() && p.isAlive()) {
+                Position pos = p.getPosition();
+                double x = pos != null ? pos.getX() : 0.0;
+                double y = pos != null ? pos.getY() : 0.0;
+                options.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(),
+                        GameEngine.buildNpcAlias(p.getId())));
+            }
+        }
+        return options;
     }
 
 }

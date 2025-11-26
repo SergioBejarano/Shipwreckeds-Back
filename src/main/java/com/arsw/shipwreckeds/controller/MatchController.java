@@ -173,29 +173,13 @@ public class MatchController {
                     throw new IllegalArgumentException("Ya hay una votación en curso.");
                 }
 
-                List<AvatarState> options = new ArrayList<>();
-                for (Npc n : match.getNpcs()) {
-                    Position pos = n.getPosition();
-                    double x = pos != null ? pos.getX() : 0.0;
-                    double y = pos != null ? pos.getY() : 0.0;
-                    options.add(new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(),
-                            n.getDisplayName()));
-                }
-                for (Player pl : match.getPlayers()) {
-                    if (pl.isInfiltrator() && pl.isAlive()) {
-                        Position pos = pl.getPosition();
-                        double x = pos != null ? pos.getX() : 0.0;
-                        double y = pos != null ? pos.getY() : 0.0;
-                        options.add(new AvatarState(pl.getId(), "npc", null, x, y, true, pl.isAlive(),
-                                GameEngine.buildNpcAlias(pl.getId())));
-                    }
-                }
-
                 match.startVoting();
+                long voteEndsAt = match.getVoteStartEpochMs() + Match.VOTE_DURATION_SECONDS * 1000L;
                 GameState state = buildGameStateForMatch(match);
-                VoteStart vs = new VoteStart(options,
+                VoteStart vs = new VoteStart(buildVoteOptions(match),
                         "Iniciar votación: elige un NPC para expulsar",
-                        Match.VOTE_DURATION_SECONDS);
+                        Match.VOTE_DURATION_SECONDS,
+                        voteEndsAt);
                 return new VoteStartContext(state, vs);
             });
 
@@ -277,6 +261,9 @@ public class MatchController {
         GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
         GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
         String status = match.getStatus() != null ? match.getStatus().name() : MatchStatus.WAITING.name();
+        boolean votingActive = match.isVotingActive();
+        long voteEndsAt = votingActive ? match.getVoteStartEpochMs() + Match.VOTE_DURATION_SECONDS * 1000L : 0L;
+        List<AvatarState> voteOptions = votingActive ? buildVoteOptions(match) : null;
         return new GameState(
                 match.getCode(),
                 System.currentTimeMillis(),
@@ -288,8 +275,32 @@ public class MatchController {
                 boat,
                 match.getWinnerMessage(),
                 match.isFuelWindowOpenNow(),
-                match.getFuelWindowSecondsRemaining());
+                match.getFuelWindowSecondsRemaining(),
+                votingActive,
+                voteEndsAt,
+                voteOptions);
 
+    }
+
+    private List<AvatarState> buildVoteOptions(Match match) {
+        List<AvatarState> options = new ArrayList<>();
+        for (Npc n : match.getNpcs()) {
+            Position pos = n.getPosition();
+            double x = pos != null ? pos.getX() : 0.0;
+            double y = pos != null ? pos.getY() : 0.0;
+            options.add(new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(),
+                    n.getDisplayName()));
+        }
+        for (Player pl : match.getPlayers()) {
+            if (pl.isInfiltrator() && pl.isAlive()) {
+                Position pos = pl.getPosition();
+                double x = pos != null ? pos.getX() : 0.0;
+                double y = pos != null ? pos.getY() : 0.0;
+                options.add(new AvatarState(pl.getId(), "npc", null, x, y, true, pl.isAlive(),
+                        GameEngine.buildNpcAlias(pl.getId())));
+            }
+        }
+        return options;
     }
 
     private void concludeVote(String code, boolean dueToTimeout) {

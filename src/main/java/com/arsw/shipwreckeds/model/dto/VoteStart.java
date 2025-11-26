@@ -15,4 +15,5 @@ public class VoteStart {
     private List<AvatarState> options;
     private String message;
     private int durationSeconds;
+    private long voteEndsAtEpochMs;
 }

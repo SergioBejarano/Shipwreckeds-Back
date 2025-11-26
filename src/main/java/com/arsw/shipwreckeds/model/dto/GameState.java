@@ -23,6 +23,9 @@ public class GameState {
     private String winnerMessage;
     private boolean fuelWindowOpen;
     private int fuelWindowSecondsRemaining;
+    private boolean votingActive;
+    private long voteEndsAtEpochMs;
+    private List<AvatarState> voteOptions;
 
     @Getter
     @Setter
