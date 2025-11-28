@@ -10,18 +10,24 @@ import com.arsw.shipwreckeds.model.dto.MoveCommand;
 import com.arsw.shipwreckeds.service.AuthService;
 import com.arsw.shipwreckeds.service.MatchService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.argThat;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Pruebas unitarias para GameController.
@@ -53,65 +59,33 @@ class GameControllerTest {
     }
 
     @Test
-    void handleMove_validMove_callsBroadcastAndMoveTo() {
-        // arrange
+    @DisplayName("Cuando el movimiento es válido se actualiza la posición y se emite broadcast")
+    void handleMove_validMove_updatesStateAndBroadcasts() {
         String code = "ABC";
-        Long avatarId = 1L;
         String username = "player1";
+        long avatarId = 1L;
 
-        Match match = mock(Match.class);
-        Player target = mock(Player.class);
-        MoveCommand cmd = mock(MoveCommand.class);
-        MoveCommand.Direction dir = mock(MoveCommand.Direction.class);
+        Match match = matchWithSinglePlayer(code, avatarId, username, MatchStatus.STARTED);
+        MoveCommand cmd = new MoveCommand(username, avatarId, new MoveCommand.Direction(1.0, 0.0));
+        when(authService.getPlayer(username)).thenReturn(new Player());
+        stubMatchMutation(code, match);
 
-        when(matchService.getMatchByCode(code)).thenReturn(match);
-        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
-        when(match.getPlayers()).thenReturn(List.of(target));
-        when(match.getNpcs()).thenReturn(Collections.emptyList());
-        when(target.getId()).thenReturn(avatarId);
-        when(target.getUsername()).thenReturn(username);
-        // initial position (0,0)
-        Position initPos = new Position(0.0, 0.0);
-        when(target.getPosition()).thenReturn(initPos);
-        when(target.isInfiltrator()).thenReturn(false);
-        when(target.isAlive()).thenReturn(true);
-
-        when(authService.getPlayer(username)).thenReturn(mock(Player.class));
-
-        when(cmd.getUsername()).thenReturn(username);
-        when(cmd.getAvatarId()).thenReturn(avatarId);
-        when(cmd.getDirection()).thenReturn(dir);
-        // direction (1, 0)
-        when(dir.getDx()).thenReturn(1.0);
-        when(dir.getDy()).thenReturn(0.0);
-
-        // act
         gameController.handleMove(code, cmd);
 
-        // assert: verify that player.moveTo(...) was called with a Position with x > 0
-        verify(target, times(1)).moveTo(argThat(p -> {
-            if (p instanceof Position) {
-                Position pos = (Position) p;
-                // step = ISLAND_RADIUS * 0.035 ≈ 3.5 (ISLAND_RADIUS = 100)
-                // so x should be roughly 3.5 (allow small tolerance)
-                return Math.abs(pos.getX() - (100.0 * 0.035)) < 0.0001 && Math.abs(pos.getY() - 0.0) < 1e-6;
-            }
-            return false;
-        }));
-
-        // and verify broadcast called once
-        verify(webSocketController, times(1)).broadcastGameState(eq(code), ArgumentMatchers.any());
+        Position updated = match.getPlayers().get(0).getPosition();
+        assertNotNull(updated, "La posición debe actualizarse");
+        assertEquals(100.0 * 0.035, updated.getX(), 1e-6);
+        assertEquals(0.0, updated.getY(), 1e-6);
+        verify(webSocketController).broadcastGameState(eq(code), any());
     }
 
     @Test
+    @DisplayName("Si el código de partida no existe no se emite broadcast")
     void handleMove_matchNotFound_noBroadcast() {
         String code = "NOPE";
-        MoveCommand cmd = mock(MoveCommand.class);
-
-        when(cmd.getUsername()).thenReturn("u");
-        when(cmd.getAvatarId()).thenReturn(1L);
-        when(cmd.getDirection()).thenReturn(mock(MoveCommand.Direction.class));
-        when(matchService.getMatchByCode(code)).thenReturn(null);
+        MoveCommand cmd = new MoveCommand("u", 99L, new MoveCommand.Direction(1.0, 0.0));
+        when(authService.getPlayer("u")).thenReturn(new Player());
+        when(matchService.updateMatch(eq(code), any())).thenThrow(new IllegalArgumentException("invalid"));
 
         gameController.handleMove(code, cmd);
 
@@ -119,66 +93,60 @@ class GameControllerTest {
     }
 
     @Test
+    @DisplayName("Si la partida no está en curso, no se mueve ni se notifica")
     void handleMove_matchNotStarted_noBroadcast() {
         String code = "CODE";
-        MoveCommand cmd = mock(MoveCommand.class);
-        Match match = mock(Match.class);
-
-        when(matchService.getMatchByCode(code)).thenReturn(match);
-        when(match.getStatus()).thenReturn(MatchStatus.WAITING);
-
-        when(cmd.getUsername()).thenReturn("u");
-        when(cmd.getAvatarId()).thenReturn(1L);
-        when(cmd.getDirection()).thenReturn(mock(MoveCommand.Direction.class));
+        String username = "u";
+        long avatarId = 3L;
+        Match match = matchWithSinglePlayer(code, avatarId, username, MatchStatus.WAITING);
+        MoveCommand cmd = new MoveCommand(username, avatarId, new MoveCommand.Direction(0.0, 1.0));
+        when(authService.getPlayer(username)).thenReturn(new Player());
+        stubMatchMutation(code, match);
 
         gameController.handleMove(code, cmd);
 
-        verifyNoInteractions(webSocketController);
+        Position position = match.getPlayers().get(0).getPosition();
+        assertNull(position, "La posición no debe cambiar cuando la partida no ha iniciado");
+        verify(webSocketController, never()).broadcastGameState(eq(code), any());
     }
 
-
     @Test
+    @DisplayName("El rate limit evita broadcasts consecutivos demasiado rápidos")
     void handleMove_rateLimited_secondImmediateCallIgnored() {
-        // arrange
         String code = "RATE";
-        Long avatarId = 10L;
         String username = "rater";
-        Match match = mock(Match.class);
-        Player target = mock(Player.class);
-        MoveCommand cmd1 = mock(MoveCommand.class);
-        MoveCommand cmd2 = mock(MoveCommand.class);
-        MoveCommand.Direction dir = mock(MoveCommand.Direction.class);
+        long avatarId = 10L;
+        Match match = matchWithSinglePlayer(code, avatarId, username, MatchStatus.STARTED);
+        MoveCommand first = new MoveCommand(username, avatarId, new MoveCommand.Direction(1.0, 0.0));
+        MoveCommand second = new MoveCommand(username, avatarId, new MoveCommand.Direction(1.0, 0.0));
+        when(authService.getPlayer(username)).thenReturn(new Player());
+        stubMatchMutation(code, match);
 
-        when(matchService.getMatchByCode(code)).thenReturn(match);
-        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
-        when(match.getPlayers()).thenReturn(List.of(target));
-        when(match.getNpcs()).thenReturn(Collections.emptyList());
-        when(target.getId()).thenReturn(avatarId);
-        when(target.getUsername()).thenReturn(username);
-        when(target.getPosition()).thenReturn(new Position(0.0, 0.0));
-        when(target.isInfiltrator()).thenReturn(false);
-        when(target.isAlive()).thenReturn(true);
+        gameController.handleMove(code, first);
+        gameController.handleMove(code, second);
 
-        when(authService.getPlayer(username)).thenReturn(mock(Player.class));
+        verify(webSocketController).broadcastGameState(eq(code), any());
+    }
 
-        when(cmd1.getUsername()).thenReturn(username);
-        when(cmd1.getAvatarId()).thenReturn(avatarId);
-        when(cmd1.getDirection()).thenReturn(dir);
+    private void stubMatchMutation(String code, Match match) {
+        when(matchService.updateMatch(eq(code), any())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Function<Match, Object> mutator = (Function<Match, Object>) invocation.getArgument(1);
+            return mutator.apply(match);
+        });
+    }
 
-        when(cmd2.getUsername()).thenReturn(username);
-        when(cmd2.getAvatarId()).thenReturn(avatarId);
-        when(cmd2.getDirection()).thenReturn(dir);
-
-        when(dir.getDx()).thenReturn(1.0);
-        when(dir.getDy()).thenReturn(0.0);
-
-        // act: first call should be processed
-        gameController.handleMove(code, cmd1);
-        // immediate second call should be rate-limited and ignored
-        gameController.handleMove(code, cmd2);
-
-        // assert
-        verify(webSocketController, times(1)).broadcastGameState(eq(code), ArgumentMatchers.any());
+    private Match matchWithSinglePlayer(String code, long avatarId, String username, MatchStatus status) {
+        Match match = new Match(1L, code);
+        match.setStatus(status);
+        Player player = new Player(avatarId, username, "skin", null);
+        player.setAlive(true);
+        player.setInfiltrator(false);
+        List<Player> roster = new ArrayList<>();
+        roster.add(player);
+        match.setPlayers(roster);
+        match.setNpcs(new ArrayList<>());
+        return match;
     }
 
 }
