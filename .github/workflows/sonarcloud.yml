@@ -1,4 +1,4 @@
-name: SonarCloud analysis
+name: Build and analyze with SonarCloud
 
 on:
   push:
@@ -12,14 +12,13 @@ permissions:
   pull-requests: read
 
 jobs:
-  Analysis:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -27,16 +26,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build and test with Maven (generates JaCoCo)
-        run: mvn -B test
-
-      - name: SonarCloud Analysis
-        uses: SonarSource/sonarcloud-github-action@v2
+      - name: Build, test and analyze with Maven + SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=SergioBejarano_Shipwreckeds-Back
-            -Dsonar.organization=sergiobejarano
-            -Dsonar.java.binaries=target/classes
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+        run: mvn -B clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          -Dsonar.projectKey=SergioBejarano_Shipwreckeds-Back \
+          -Dsonar.organization=sergiobejarano \
+          -Dsonar.host.url=https://sonarcloud.io
