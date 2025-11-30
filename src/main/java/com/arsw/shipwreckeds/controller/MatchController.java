@@ -377,16 +377,14 @@ public class MatchController {
                             match.endMatch();
                             gameEngine.stopMatchTicker(code);
                             result = new VoteResult(counts, leadingId, "human",
-                                    "El infiltrado fue expulsado por mayoría. Los náufragos ganan.", abstentions);
+                                    "El infiltrado fue expulsado por mayoría. Los náufragos ganan.", abstentions, 0L);
                         } else {
                             result = new VoteResult(counts, leadingId, "human",
-                                    "Un jugador humano fue expulsado por mayoría.", abstentions);
+                                    "Un jugador humano fue expulsado por mayoría.", abstentions, 0L);
                         }
 
-                        match.setLastVoteResult(result);
-                        match.setLastVoteResultEpochMs(System.currentTimeMillis());
-
-                        return new VoteResultContext(result, buildGameStateForMatch(match));
+                        VoteResult stamped = stampAndStoreResult(match, result);
+                        return new VoteResultContext(stamped, buildGameStateForMatch(match));
                     }
 
                     final Long npcTargetId = leadingId;
@@ -407,10 +405,9 @@ public class MatchController {
                                 : "Se expulsó un NPC por mayoría.";
 
                         VoteResult result = new VoteResult(counts, leadingId, "npc",
-                                resultMessage, abstentions);
-                        match.setLastVoteResult(result);
-                        match.setLastVoteResultEpochMs(System.currentTimeMillis());
-                        return new VoteResultContext(result, buildGameStateForMatch(match));
+                                resultMessage, abstentions, 0L);
+                        VoteResult stamped = stampAndStoreResult(match, result);
+                        return new VoteResultContext(stamped, buildGameStateForMatch(match));
                     }
                 }
 
@@ -434,10 +431,9 @@ public class MatchController {
                             : "No hubo mayoría. Nadie fue expulsado.";
                 }
 
-                VoteResult result = new VoteResult(counts, null, "none", message, abstentions);
-                match.setLastVoteResult(result);
-                match.setLastVoteResultEpochMs(System.currentTimeMillis());
-                return new VoteResultContext(result, buildGameStateForMatch(match));
+                VoteResult result = new VoteResult(counts, null, "none", message, abstentions, 0L);
+                VoteResult stamped = stampAndStoreResult(match, result);
+                return new VoteResultContext(stamped, buildGameStateForMatch(match));
             });
         } catch (IllegalArgumentException e) {
             return;
@@ -449,6 +445,14 @@ public class MatchController {
 
         webSocketController.broadcastVoteResult(code, ctx.result());
         webSocketController.broadcastGameState(code, ctx.gameState());
+    }
+
+    private VoteResult stampAndStoreResult(Match match, VoteResult result) {
+        long publishedAt = System.currentTimeMillis();
+        result.setPublishedAtEpochMs(publishedAt);
+        match.setLastVoteResult(result);
+        match.setLastVoteResultEpochMs(publishedAt);
+        return result;
     }
 
     @PostMapping("/{code}/eliminate")
