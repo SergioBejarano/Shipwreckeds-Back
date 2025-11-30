@@ -2,10 +2,14 @@ package com.arsw.shipwreckeds.config;
 
 import com.arsw.shipwreckeds.service.cache.MatchCachePayload;
 import com.arsw.shipwreckeds.service.session.PlayerSessionPayload;
+import com.arsw.shipwreckeds.websocket.DistributedWsBroadcaster;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.integration.redis.util.RedisLockRegistry;
@@ -43,5 +47,20 @@ public class RedisConfig {
     @Bean
     public RedisLockRegistry redisLockRegistry(RedisConnectionFactory connectionFactory) {
         return new RedisLockRegistry(connectionFactory, "shipwreckeds-locks");
+    }
+
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        return new StringRedisTemplate(connectionFactory);
+    }
+
+    @Bean
+    public RedisMessageListenerContainer redisMessageListenerContainer(
+            RedisConnectionFactory connectionFactory,
+            DistributedWsBroadcaster wsBroadcaster) {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.addMessageListener(wsBroadcaster, new ChannelTopic(DistributedWsBroadcaster.WS_CHANNEL));
+        return container;
     }
 }
