@@ -5,6 +5,7 @@ import java.util.Map;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Competitive task where players race to fill a shared fuel gauge.
@@ -17,6 +18,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
+@Slf4j
 public class FuelWarTask extends Task {
 
     private Map<Long, Integer> clickCounts;
@@ -46,7 +48,7 @@ public class FuelWarTask extends Task {
     public void startBy(Long playerId) {
         this.active = true;
         this.contested = true;
-        System.out.println("La guerra de gasolina ha comenzado por el jugador " + playerId + ".");
+        log.info("La guerra de gasolina ha comenzado por el jugador {}.", playerId);
     }
 
     /**
@@ -56,12 +58,12 @@ public class FuelWarTask extends Task {
      */
     public void registerClick(Long playerId) {
         if (!active) {
-            System.out.println("La tarea aún no está activa.");
+            log.info("La tarea {} aún no está activa.", id);
             return;
         }
         int current = clickCounts.getOrDefault(playerId, 0);
         clickCounts.put(playerId, current + 1);
-        System.out.println("Jugador " + playerId + " hizo un clic. Total: " + (current + 1));
+        log.info("Jugador {} hizo un clic. Total: {}", playerId, (current + 1));
     }
 
     /**
@@ -101,11 +103,11 @@ public class FuelWarTask extends Task {
         }
 
         if (tie) {
-            System.out.println("La contienda terminó en empate.");
+            log.info("La contienda terminó en empate.");
             return null;
         }
 
-        System.out.println("El jugador ganador es " + winnerId + " con " + maxClicks + " clics.");
+        log.info("El jugador ganador es {} con {} clics.", winnerId, maxClicks);
         return winnerId;
     }
 

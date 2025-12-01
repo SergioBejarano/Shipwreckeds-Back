@@ -49,7 +49,7 @@ class AuthServiceTest {
     private CognitoTokens tokens;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         tokens = tokensFor("ana");
         sessionStore = new InMemoryPlayerSessionStore();
         authService = new AuthService(cognitoClient, sessionStore);

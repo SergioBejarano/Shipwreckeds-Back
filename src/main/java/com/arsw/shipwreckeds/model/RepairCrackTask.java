@@ -2,6 +2,7 @@ package com.arsw.shipwreckeds.model;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Task that simulates repairing cracks on the ship hull.
@@ -13,6 +14,7 @@ import lombok.Setter;
  */
 @Getter
 @Setter
+@Slf4j
 public class RepairCrackTask extends Task {
 
     private int progressPercent;
@@ -39,7 +41,7 @@ public class RepairCrackTask extends Task {
     @Override
     public void startBy(Long playerId) {
         this.active = true;
-        System.out.println("El jugador " + playerId + " comenzó a reparar la grieta " + id + ".");
+        log.info("El jugador {} comenzó a reparar la grieta {}.", playerId, id);
     }
 
     /**
@@ -51,7 +53,7 @@ public class RepairCrackTask extends Task {
     @Override
     public void progressUpdate(Long playerId, double delta) {
         if (!active) {
-            System.out.println("La tarea " + id + " aún no está activa.");
+            log.info("La tarea {} aún no está activa.", id);
             return;
         }
 
@@ -59,9 +61,9 @@ public class RepairCrackTask extends Task {
         if (progressPercent >= 100) {
             progressPercent = 100;
             active = false;
-            System.out.println("El jugador " + playerId + " completó la reparación de la grieta " + id + ".");
+            log.info("El jugador {} completó la reparación de la grieta {}.", playerId, id);
         } else {
-            System.out.println("Progreso actual: " + progressPercent + "%");
+            log.info("Progreso actual: {}%", progressPercent);
         }
     }
 

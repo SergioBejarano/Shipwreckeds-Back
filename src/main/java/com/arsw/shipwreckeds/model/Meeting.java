@@ -7,6 +7,7 @@ import java.util.Map;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Encapsulates the state of an emergency meeting inside a match.
@@ -19,6 +20,7 @@ import lombok.Setter;
  */
 @Setter
 @Getter
+@Slf4j
 public class Meeting {
 
     private Long id;
@@ -46,8 +48,8 @@ public class Meeting {
      * Starts the meeting. Future iterations may attach a real timer here.
      */
     public void start() {
-        System.out.println("La reunión fue convocada por " + calledBy.getUsername() + ".");
-        System.out.println("Duración: " + durationSeconds + " segundos.");
+        log.info("La reunión fue convocada por {}.", calledBy.getUsername());
+        log.info("Duración: {} segundos.", durationSeconds);
     }
 
     /**
@@ -57,7 +59,7 @@ public class Meeting {
      */
     public void addChat(ChatMessage msg) {
         chatMessages.add(msg);
-        System.out.println("[Jugador " + msg.getSenderId() + "]: " + msg.getText());
+        log.info("[Jugador {}]: {}", msg.getSenderId(), msg.getText());
     }
 
     /**
@@ -68,7 +70,7 @@ public class Meeting {
      */
     public void castVote(Long voterId, Long targetNpcId) {
         votes.put(voterId, targetNpcId);
-        System.out.println("Jugador " + voterId + " votó por el NPC " + targetNpcId + ".");
+        log.info("Jugador {} votó por el NPC {}.", voterId, targetNpcId);
     }
 
     /**
@@ -79,7 +81,7 @@ public class Meeting {
      */
     public Long tallyVotes() {
         if (votes.isEmpty()) {
-            System.out.println("No se emitieron votos en la reunión.");
+            log.info("No se emitieron votos en la reunión.");
             return null;
         }
 
@@ -103,11 +105,11 @@ public class Meeting {
         }
 
         if (tie) {
-            System.out.println("La votación terminó en empate.");
+            log.info("La votación terminó en empate.");
             return null;
         }
 
-        System.out.println("El NPC más votado fue " + mostVotedId + " con " + maxVotes + " votos.");
+        log.info("El NPC más votado fue {} con {} votos.", mostVotedId, maxVotes);
         return mostVotedId;
     }
 }

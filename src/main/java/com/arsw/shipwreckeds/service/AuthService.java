@@ -9,6 +9,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.text.ParseException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @version 19/10/2025
  */
 @Service
+@Slf4j
 public class AuthService {
 
     private final AtomicLong nextId = new AtomicLong(System.currentTimeMillis());
@@ -118,7 +120,7 @@ public class AuthService {
         if (!stored) {
             throw new IllegalArgumentException("Usuario ya conectado desde otro cliente.");
         }
-        System.out.println("Jugador conectado: " + username);
+        log.info("Jugador conectado: {}", username);
         return candidate;
     }
 

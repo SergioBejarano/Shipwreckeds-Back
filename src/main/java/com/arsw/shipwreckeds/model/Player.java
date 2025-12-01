@@ -3,6 +3,7 @@ package com.arsw.shipwreckeds.model;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Represents a human participant in the match.
@@ -15,6 +16,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@Slf4j
 public class Player {
 
     private Long id;
@@ -46,7 +48,7 @@ public class Player {
      * quick-interaction mini games.
      */
     public void click() {
-        System.out.println(username + " hizo un clic en el juego.");
+        log.info("{} hizo un clic en el juego.", username);
     }
 
     /**
@@ -56,7 +58,7 @@ public class Player {
      */
     public void moveTo(Position p) {
         this.position = p;
-        System.out.println(username + " se movió a la posición (" + p.getX() + ", " + p.getY() + ").");
+        log.info("{} se movió a la posición ({}, {}).", username, p.getX(), p.getY());
     }
 
     /**
@@ -65,7 +67,7 @@ public class Player {
      * @param taskId identifier of the task being triggered
      */
     public void activateTask(Long taskId) {
-        System.out.println(username + " activó la tarea con ID: " + taskId);
+        log.info("{} activó la tarea con ID: {}", username, taskId);
     }
 
     /**
@@ -74,6 +76,6 @@ public class Player {
      * @param targetNpcId identifier of the NPC selected for expulsion
      */
     public void castVote(Long targetNpcId) {
-        System.out.println(username + " votó para expulsar al NPC con ID: " + targetNpcId);
+        log.info("{} votó para expulsar al NPC con ID: {}", username, targetNpcId);
     }
 }

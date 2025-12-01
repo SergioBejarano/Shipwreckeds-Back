@@ -11,6 +11,7 @@ import com.arsw.shipwreckeds.model.dto.VoteResult;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Aggregates all server-side state for a multiplayer match, including players,
@@ -20,6 +21,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@Slf4j
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Match {
 
@@ -72,14 +74,13 @@ public class Match {
      */
     public void startMatch() {
         if (players.size() < 5) {
-            System.out
-                    .println("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
+                log.info("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
             return;
         }
         this.status = MatchStatus.STARTED;
         this.timerSeconds = MATCH_DURATION_SECONDS;
         this.winnerMessage = null;
-        System.out.println("La partida ha comenzado. Tiempo restante: " + timerSeconds + " segundos.");
+            log.info("La partida ha comenzado. Tiempo restante: {} segundos.", timerSeconds);
     }
 
     /**
@@ -92,7 +93,7 @@ public class Match {
         int index = random.nextInt(players.size());
         infiltrator = players.get(index);
         infiltrator.setInfiltrator(true);
-        System.out.println("El jugador " + infiltrator.getUsername() + " ha sido asignado como infiltrado (oculto).");
+        log.info("El jugador {} ha sido asignado como infiltrado (oculto).", infiltrator.getUsername());
     }
 
     /**
@@ -147,9 +148,9 @@ public class Match {
      */
     public void endMatch() {
         this.status = MatchStatus.FINISHED;
-        System.out.println("La partida ha terminado.");
+        log.info("La partida ha terminado.");
         if (this.winnerMessage != null) {
-            System.out.println(this.winnerMessage);
+            log.info(this.winnerMessage);
         }
     }
 
@@ -234,7 +235,7 @@ public class Match {
         this.voteStartEpochMs = System.currentTimeMillis();
         this.lastVoteResult = null;
         this.lastVoteResultEpochMs = 0L;
-        System.out.println("Votación iniciada para partida " + this.code);
+        log.info("Votación iniciada para partida {}", this.code);
     }
 
     /**
@@ -293,11 +294,10 @@ public class Match {
      */
     public void triggerMeeting(Player by) {
         if (status != MatchStatus.STARTED) {
-            System.out.println("No se puede convocar una reunión en este momento.");
+            log.info("No se puede convocar una reunión en este momento.");
             return;
         }
-
-        System.out.println("El jugador " + by.getUsername() + " convocó una reunión.");
+        log.info("El jugador {} convocó una reunión.", by.getUsername());
         this.status = MatchStatus.STARTED;
     }
 
@@ -309,7 +309,7 @@ public class Match {
      */
     public void addPlayer(Player player) {
         if (status != MatchStatus.WAITING) {
-            System.out.println("No se pueden unir más jugadores, la partida ya ha comenzado.");
+            log.info("No se pueden unir más jugadores, la partida ya ha comenzado.");
             return;
         }
         if (player != null) {
@@ -318,7 +318,7 @@ public class Match {
             player.setPosition(null);
         }
         players.add(player);
-        System.out.println("Jugador " + player.getUsername() + " se unió a la partida con código " + code + ".");
+        log.info("Jugador {} se unió a la partida con código {}.", player.getUsername(), code);
     }
 
     /**

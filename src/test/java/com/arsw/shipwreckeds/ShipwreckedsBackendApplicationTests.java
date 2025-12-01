@@ -37,9 +37,6 @@ class ShipwreckedsBackendApplicationTests {
     @MockBean
     private SimpMessagingTemplate messagingTemplate;
 
-    // Aquí se agregan otros beans que causen errores al levantar el contexto
-    // @MockBean
-    // private OtraDependencia externa;
 
     @Test
     void contextLoads() {

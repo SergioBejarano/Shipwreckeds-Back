@@ -7,8 +7,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-import com.arsw.shipwreckeds.model.dto.VoteResult;
-
 @Getter
 @Setter
 @NoArgsConstructor

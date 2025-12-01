@@ -8,7 +8,6 @@ import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.AvatarState;
 import com.arsw.shipwreckeds.model.dto.GameState;
-import com.arsw.shipwreckeds.service.MatchService;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
