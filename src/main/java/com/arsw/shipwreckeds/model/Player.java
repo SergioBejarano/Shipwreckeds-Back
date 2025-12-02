@@ -25,6 +25,7 @@ public class Player {
     private Position position;
     private boolean isInfiltrator;
     private boolean isAlive;
+    private String npcAlias;
 
     /**
      * Creates a player with the provided base attributes.

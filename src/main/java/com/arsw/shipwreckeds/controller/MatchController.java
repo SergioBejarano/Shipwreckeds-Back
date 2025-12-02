@@ -247,7 +247,7 @@ public class MatchController {
             double y = pos != null ? pos.getY() : 0.0;
             String type = p.isInfiltrator() ? "npc" : "human";
             String owner = p.isInfiltrator() ? null : p.getUsername();
-            String dname = p.isInfiltrator() ? GameEngine.buildNpcAlias(p.getId()) : p.getUsername();
+            String dname = p.isInfiltrator() ? GameEngine.resolveNpcAlias(p) : p.getUsername();
             avatars.add(new AvatarState(p.getId(), type, owner, x, y, p.isInfiltrator(), p.isAlive(), dname));
         }
         for (Npc n : match.getNpcs()) {
@@ -300,7 +300,7 @@ public class MatchController {
                 double x = pos != null ? pos.getX() : 0.0;
                 double y = pos != null ? pos.getY() : 0.0;
                 options.add(new AvatarState(pl.getId(), "npc", null, x, y, true, pl.isAlive(),
-                        GameEngine.buildNpcAlias(pl.getId())));
+                        GameEngine.resolveNpcAlias(pl)));
             }
         }
         return options;

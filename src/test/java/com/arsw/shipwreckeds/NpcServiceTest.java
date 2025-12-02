@@ -77,6 +77,7 @@ class NpcServiceTest {
                 new Player(3L, "p3", "skin", null),
                 new Player(4L, "p4", "skin", null),
                 new Player(5L, "p5", "skin", null)));
+        match.setInfiltrator(match.getPlayers().get(0));
 
         npcService.generateNpcs(match);
         long[] firstIds = match.getNpcs().stream().mapToLong(Npc::getId).toArray();
@@ -86,5 +87,24 @@ class NpcServiceTest {
         npcService.generateNpcs(match);
         long[] secondIds = match.getNpcs().stream().mapToLong(Npc::getId).toArray();
         assertArrayEquals(firstIds, secondIds, "La secuencia debe reiniciarse en cada generación");
+    }
+
+    @Test
+    void generateNpcs_assignsAliasToInfiltrator() {
+        Match match = new Match(2L, "ALIAS");
+        match.getPlayers().addAll(List.of(
+                new Player(10L, "p1", "skin", null),
+                new Player(11L, "p2", "skin", null),
+                new Player(12L, "p3", "skin", null),
+                new Player(13L, "p4", "skin", null),
+                new Player(14L, "p5", "skin", null)));
+        Player infiltrator = match.getPlayers().get(1);
+        infiltrator.setInfiltrator(true);
+        match.setInfiltrator(infiltrator);
+
+        npcService.generateNpcs(match);
+
+        assertEquals("NPC-100003", infiltrator.getNpcAlias(),
+                "El alias del infiltrado debe continuar la secuencia de NPCs reales");
     }
 }

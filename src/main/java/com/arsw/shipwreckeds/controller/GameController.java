@@ -149,7 +149,7 @@ public class GameController {
             double y = pos != null ? pos.getY() : 0.0;
 
             if (p.isInfiltrator()) {
-                String dname = GameEngine.buildNpcAlias(p.getId());
+                String dname = GameEngine.resolveNpcAlias(p);
                 avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(), dname));
             } else {
                 avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
@@ -209,7 +209,7 @@ public class GameController {
                 double x = pos != null ? pos.getX() : 0.0;
                 double y = pos != null ? pos.getY() : 0.0;
                 options.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(),
-                        GameEngine.buildNpcAlias(p.getId())));
+                        GameEngine.resolveNpcAlias(p)));
             }
         }
         return options;

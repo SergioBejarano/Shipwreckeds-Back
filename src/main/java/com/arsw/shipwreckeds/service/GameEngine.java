@@ -8,6 +8,7 @@ import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.AvatarState;
 import com.arsw.shipwreckeds.model.dto.GameState;
+import com.arsw.shipwreckeds.service.NpcService;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
@@ -157,7 +158,7 @@ public class GameEngine {
             double y = pos != null ? pos.getY() : 0.0;
             if (p.isInfiltrator()) {
                 avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(),
-                        aliasForInfiltrator(p.getId())));
+                        resolveNpcAlias(p)));
             } else {
                 avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
                         p.getUsername()));
@@ -270,7 +271,7 @@ public class GameEngine {
                 double x = pos != null ? pos.getX() : 0.0;
                 double y = pos != null ? pos.getY() : 0.0;
                 options.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(),
-                        buildNpcAlias(p.getId())));
+                        resolveNpcAlias(p)));
             }
         }
         return options;
@@ -286,17 +287,27 @@ public class GameEngine {
         return "NPC-" + (NPC_ALIAS_OFFSET + baseId);
     }
 
+    public static String resolveNpcAlias(Player player) {
+        if (player == null)
+            return buildNpcAlias(0L);
+        String alias = player.getNpcAlias();
+        if (alias == null) {
+            Long playerId = player.getId();
+            alias = NpcService.lookupAlias(playerId);
+            if (alias == null) {
+                alias = buildNpcAlias(playerId != null ? playerId : 0L);
+            }
+            player.setNpcAlias(alias);
+        }
+        return alias;
+    }
+
     /**
      * Resolves the alias used when rendering an infiltrator as an NPC.
      *
      * @param playerId infiltrator id
      * @return alias string used client-side
      */
-    private String aliasForInfiltrator(Long playerId) {
-        long id = playerId != null ? playerId : 0L;
-        return buildNpcAlias(id);
-    }
-
     /**
      * Cancels all scheduled tasks before the bean is destroyed.
      */
