@@ -7,7 +7,6 @@ import com.arsw.shipwreckeds.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
 public class AuthController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AuthController.class);
@@ -46,7 +44,7 @@ public class AuthController {
      *         the login fails
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<Object> login(@RequestBody LoginRequest request) {
         try {
             LoginResponse response = authService.login(request.getUsername(), request.getPassword());
             return ResponseEntity.ok(response);
@@ -59,7 +57,7 @@ public class AuthController {
     }
 
     @PostMapping("/login/code")
-    public ResponseEntity<?> loginWithCode(@RequestBody LoginCodeRequest request) {
+    public ResponseEntity<Object> loginWithCode(@RequestBody LoginCodeRequest request) {
         try {
             LoginResponse response = authService.loginWithAuthorizationCode(request.getCode(),
                     request.getRedirectUri());
@@ -83,7 +81,7 @@ public class AuthController {
      * @return {@link ResponseEntity} indicating whether the player was found
      */
     @PostMapping("/logout/{username}")
-    public ResponseEntity<?> logout(@org.springframework.web.bind.annotation.PathVariable String username) {
+    public ResponseEntity<Object> logout(@org.springframework.web.bind.annotation.PathVariable String username) {
         boolean ok = authService.logout(username);
         if (ok)
             return ResponseEntity.ok().build();

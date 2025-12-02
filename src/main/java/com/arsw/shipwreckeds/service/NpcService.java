@@ -5,8 +5,6 @@ import com.arsw.shipwreckeds.model.Npc;
 import com.arsw.shipwreckeds.model.Position;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * Service responsible for generating non-player characters with consistent ids
  * and positions.
@@ -14,8 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class NpcService {
 
-    // start NPC ids at a high offset to avoid colliding with player ids
-    private final AtomicLong nextNpcId = new AtomicLong(100000);
+    private static final long BASE_NPC_ID = 100000L;
 
     /**
      * Recreates the NPC roster so the number of red avatars matches the number of
@@ -42,7 +39,8 @@ public class NpcService {
             double r = rnd.nextDouble() * (islandRadius * 0.7); // keep them closer to center
             double x = Math.cos(ang) * r;
             double y = Math.sin(ang) * r;
-            Npc npc = new Npc(nextNpcId.getAndIncrement(), "npc-skin-" + (i + 2), new Position(x, y), 0.8, false);
+            long npcId = BASE_NPC_ID + i;
+            Npc npc = new Npc(npcId, "npc-skin-" + (i + 2), new Position(x, y), 0.8, false);
             match.addNpc(npc);
         }
     }

@@ -74,13 +74,13 @@ public class Match {
      */
     public void startMatch() {
         if (players.size() < 5) {
-                log.info("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
+            log.info("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
             return;
         }
         this.status = MatchStatus.STARTED;
         this.timerSeconds = MATCH_DURATION_SECONDS;
         this.winnerMessage = null;
-            log.info("La partida ha comenzado. Tiempo restante: {} segundos.", timerSeconds);
+        log.info("La partida ha comenzado. Tiempo restante: {} segundos.", timerSeconds);
     }
 
     /**

@@ -37,7 +37,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/match")
-@CrossOrigin(origins = "*")
 public class MatchController {
     private static final double ISLAND_RADIUS = 100.0;
     private static final double BOAT_X = ISLAND_RADIUS + 12.0;
@@ -68,7 +67,7 @@ public class MatchController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<?> createMatch(@RequestBody CreateMatchRequest req) {
+    public ResponseEntity<Object> createMatch(@RequestBody CreateMatchRequest req) {
         try {
             Player host = authService.getPlayer(req.getHostName());
             if (host == null) {
@@ -83,7 +82,7 @@ public class MatchController {
     }
 
     @PostMapping("/join")
-    public ResponseEntity<?> joinMatch(@RequestBody JoinMatchRequest req) {
+    public ResponseEntity<Object> joinMatch(@RequestBody JoinMatchRequest req) {
         try {
             Player player = authService.getPlayer(req.getUsername());
             if (player == null) {
@@ -98,7 +97,7 @@ public class MatchController {
     }
 
     @PostMapping("/start/{code}")
-    public ResponseEntity<?> startMatch(@PathVariable String code, @RequestParam String hostName) {
+    public ResponseEntity<Object> startMatch(@PathVariable String code, @RequestParam String hostName) {
         try {
             Match match = matchService.updateMatch(code, current -> {
                 if (current.getPlayers().isEmpty() || !current.getPlayers().get(0).getUsername().equals(hostName)) {
@@ -151,7 +150,7 @@ public class MatchController {
     }
 
     @PostMapping("/{code}/startVote")
-    public ResponseEntity<?> startVote(@PathVariable String code, @RequestParam String username) {
+    public ResponseEntity<Object> startVote(@PathVariable String code, @RequestParam String username) {
         try {
             VoteStartContext ctx = matchService.updateMatch(code, match -> {
                 if (match.getStatus() == null || !match.getStatus().name().equals("STARTED")) {
@@ -195,7 +194,7 @@ public class MatchController {
     }
 
     @PostMapping("/{code}/vote")
-    public ResponseEntity<?> submitVote(@PathVariable String code, @RequestBody VoteRequest req) {
+    public ResponseEntity<Object> submitVote(@PathVariable String code, @RequestBody VoteRequest req) {
         try {
             VoteSubmissionResult result = matchService.updateMatch(code, match -> {
                 if (!match.isVotingActive()) {
@@ -232,7 +231,7 @@ public class MatchController {
     }
 
     @GetMapping("/{code}")
-    public ResponseEntity<?> getMatch(@PathVariable String code) {
+    public ResponseEntity<Object> getMatch(@PathVariable String code) {
         Match m = matchService.getMatchByCode(code);
         if (m == null)
             return ResponseEntity.notFound().build();
@@ -456,7 +455,7 @@ public class MatchController {
     }
 
     @PostMapping("/{code}/eliminate")
-    public ResponseEntity<?> eliminate(@PathVariable String code, @RequestBody VoteRequest req) {
+    public ResponseEntity<Object> eliminate(@PathVariable String code, @RequestBody VoteRequest req) {
         if (req.getUsername() == null || req.getTargetId() == null)
             return ResponseEntity.badRequest().body("Solicitud inválida.");
 
@@ -523,7 +522,7 @@ public class MatchController {
     }
 
     @PostMapping("/{code}/fuel")
-    public ResponseEntity<?> modifyFuel(@PathVariable String code, @RequestBody FuelActionRequest req) {
+    public ResponseEntity<Object> modifyFuel(@PathVariable String code, @RequestBody FuelActionRequest req) {
         if (req.getUsername() == null || req.getAction() == null)
             return ResponseEntity.badRequest().body("Solicitud inválida.");
 

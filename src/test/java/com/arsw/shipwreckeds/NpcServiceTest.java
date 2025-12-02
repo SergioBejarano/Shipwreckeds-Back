@@ -42,8 +42,6 @@ class NpcServiceTest {
         assertTrue(match.getNpcs().isEmpty(), "No debería generarse ningún NPC si no hay jugadores");
     }
 
-
-
     @Test
     void generateNpcs_positionsWithinExpectedRadius() {
         Match match = mock(Match.class);
@@ -68,5 +66,25 @@ class NpcServiceTest {
     @Test
     void generateNpcs_nullMatch_doesNothing() {
         assertDoesNotThrow(() -> npcService.generateNpcs(null), "No debe lanzar excepción si el match es null");
+    }
+
+    @Test
+    void generateNpcs_resetsNpcIdsEveryTime() {
+        Match match = new Match(1L, "CODE");
+        match.getPlayers().addAll(List.of(
+                new Player(1L, "p1", "skin", null),
+                new Player(2L, "p2", "skin", null),
+                new Player(3L, "p3", "skin", null),
+                new Player(4L, "p4", "skin", null),
+                new Player(5L, "p5", "skin", null)));
+
+        npcService.generateNpcs(match);
+        long[] firstIds = match.getNpcs().stream().mapToLong(Npc::getId).toArray();
+        assertArrayEquals(new long[] { 100000L, 100001L, 100002L }, firstIds,
+                "Los NPC deben generarse de forma determinista");
+
+        npcService.generateNpcs(match);
+        long[] secondIds = match.getNpcs().stream().mapToLong(Npc::getId).toArray();
+        assertArrayEquals(firstIds, secondIds, "La secuencia debe reiniciarse en cada generación");
     }
 }

@@ -2,9 +2,9 @@ name: SonarCloud analysis
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -24,19 +24,17 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
-      - name: Build, test and generate coverage
-        run: mvn -B verify
-
-      - name: SonarCloud Analysis
-        uses: SonarSource/sonarcloud-github-action@v2
+      - name: Build, test, coverage and SonarCloud analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=SergioBejarano_Shipwreckeds-Back
-            -Dsonar.organization=sergiobejarano
-            -Dsonar.java.binaries=target/classes
+        run: |
+          mvn -B verify sonar:sonar \
+            -Dsonar.projectKey=SergioBejarano_Shipwreckeds-Back \
+            -Dsonar.organization=sergiobejarano \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.java.binaries=target/classes \
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
