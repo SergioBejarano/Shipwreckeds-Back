@@ -4,7 +4,7 @@ Backend de la aplicación "Shipwreckeds" (Spring Boot). Provee autenticación, g
 
 ## Diagramas
 
-### Diagrama de clases (modelo)
+### Diagrama de clases 
 
 ![alt text](src/img/modelo.png)
 
