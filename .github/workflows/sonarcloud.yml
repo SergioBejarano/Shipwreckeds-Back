@@ -35,6 +35,6 @@ jobs:
             -Dsonar.projectKey=SergioBejarano_Shipwreckeds-Back \
             -Dsonar.organization=sergiobejarano \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.token=${SONAR_TOKEN} \
             -Dsonar.java.binaries=target/classes \
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
