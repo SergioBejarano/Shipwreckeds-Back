@@ -1,118 +1,215 @@
-# Shipwreckeds Backend
+# Shipwreckeds - Backend (Spring Boot)
 
-Backend de la aplicación "Shipwreckeds" (Spring Boot). Provee autenticación, gestión de partidas y el motor de juego con soporte WebSocket.
+Backend de la aplicación "Shipwreckeds". Provee **autenticación** (AWS Cognito), **gestión de partidas** y el **motor de juego** con soporte para comunicación en tiempo real vía **WebSocket/STOMP**.
 
-## Diagramas
+---
 
-### Diagrama de clases 
+## Descripción general
+
+Shipwreckeds es un **juego multijugador** con comunicación en tiempo real. El backend está implementado con **Spring Boot** y ofrece las siguientes funcionalidades clave:
+
+* **Autenticación** y gestión de usuarios (usando AWS Cognito).
+* **API REST** para creación y consulta de partidas.
+* **Motor de juego** (`GameEngine`) que procesa comandos, gestiona eventos y el estado de la partida.
+* **Comunicación en tiempo real** a través de WebSocket usando el protocolo STOMP para manejar eventos de baja latencia (movimientos, chat, votaciones).
+
+---
+
+## Tecnologías utilizadas
+
+El proyecto está construido principalmente con el ecosistema Java/Spring.
+
+| Categoría | Tecnología | Versión/Detalle |
+| :--- | :--- | :--- |
+| **Lenguaje** | Java | 11+ (ver `pom.xml`) |
+| **Framework** | Spring Boot | Módulos Web, WebSocket, Security |
+| **Mensajería** | WebSocket | Comunicación full-duplex de baja latencia |
+| **Protocolo** | STOMP | Capa de mensajería estructurada (pub/sub) sobre WebSocket |
+| **Autenticación** | AWS Cognito | Autenticación y gestión de identidad de usuarios |
+| **Gestor de dependencias** | Maven | Compilación y gestión del proyecto |
+| **Cliente (Referencia)** | Frontend existente en carpeta `front/` | Probablemente Vite/React (ver `front/` para detalles) |
+
+---
+
+## Arquitectura general
+
+La arquitectura está diseñada para soportar interacciones bidireccionales de baja latencia.
+
+### Flujo de comunicación
+
+1.  **REST:** El Cliente se comunica a través de **API REST** para tareas iniciales (Autenticación, creación/consulta de partidas).
+2.  **WebSocket/STOMP:** El Cliente establece una conexión **WebSocket/STOMP** con el `GameEngine` para el intercambio de eventos en tiempo real (movimientos, chat, votaciones).
+    * **Clientes** se suscriben a tópicos (`/topic/game/{matchId}`) para recibir el estado del juego (broadcast).
+    * **Clientes** envían comandos a destinos de aplicación (`/app/move`, `/app/chat`) para interactuar con la partida.
+    * El **`GameEngine`** procesa comandos y publica actualizaciones de estado.
+
+### Decisiones de Arquitectura de Comunicación
+
+| Decisión | Justificación | Beneficio Práctico |
+| :--- | :--- | :--- |
+| **Comunicación en tiempo real: WebSocket** | Provee un canal full-duplex persistente, esencial para actualizaciones frecuentes y respuesta rápida en un juego multijugador. Reduce la sobrecarga de `polling`. | Menor latencia, mejor experiencia de usuario. |
+| **Protocolo de mensajería: STOMP sobre WebSocket** | Añade una capa estructurada (tópicos, colas lógicas, suscripciones) que facilita el diseño de eventos *pub/sub* del juego. | Enrutamiento sencillo por destino, control de suscripciones por sesión, simplifica la integración con Spring. |
+| **Broker y escalabilidad (Inicial)** | Se usa el broker simple/embebido de Spring para facilitar el desarrollo inicial. | Desarrollo rápido. Para escalabilidad horizontal, se recomienda integrar un broker externo (p. ej. RabbitMQ, ActiveMQ o un broker Redis). |
+| **Autenticación en WebSocket** | La conexión se establece después de la autenticación REST/Cognito. Se aplican reglas de acceso sobre destinos/STOMP headers. | Seguridad: evita que usuarios no autorizados envíen o se suscriban a canales restringidos. |
+
+### Diagramas Arquitectónicos
+
+* **Diagrama de Clases**
 
 ![alt text](src/img/modelo.png)
-
-### Diagrama de componentes
-
+    
+* **Diagrama de Componentes**
+    
 ![alt text](src/img/componenentes.png)
 
-### Diagramas de actividades (Fuel War y Votación)
+* **Diagrama de Despliegue**
+    
+![alt text](src/img/Despliegue.jpeg)
+
+---
+
+## Requerimientos funcionales
+
+El backend soporta la lógica de un juego multijugador con elementos de simulación y rol.
+
+* **Autenticación de usuarios:** Permitir a los usuarios iniciar sesión a través de AWS Cognito.
+* **Gestión de partidas (`MatchService`):**
+    * Creación de nuevas partidas.
+    * Unión de jugadores a partidas existentes.
+    * Control del estado y finalización de partidas.
+* **Motor de juego (`GameEngine`):**
+    * Procesamiento de comandos de movimiento y acciones de los jugadores.
+    * Cálculo y `broadcast` del estado actual de la partida.
+* **Interacción en tiempo real:** Soporte para chat, movimientos de jugadores, eventos de votación y cambios de estado de combustible (`Fuel War`).
+* **Gestión de roles y NPCs:**
+    * Manejo de roles y permisos de jugadores (`RoleService`).
+    * Manejo de personajes no jugadores (`NpcService`).
+
+---
+
+## Requerimientos no funcionales
+
+* **Disponibilidad y Concurrencia:** La arquitectura debe soportar interacciones en tiempo real de múltiples jugadores simultáneos por partida, manteniendo baja latencia.
+* **Seguridad:** Las conexiones REST y WebSocket deben validar la autenticación (JWT/Tokens de Cognito) y aplicar autorización.
+* **Escalabilidad:** Debe permitir la migración a un broker de mensajería externo (RabbitMQ, Redis) para el escalado horizontal de múltiples instancias del backend.
+
+---
+
+## Restricciones tecnológicas
+
+* **Plataforma de desarrollo:** Java y Spring Boot.
+* **Autenticación:** Uso de AWS Cognito para la identidad.
+* **Comunicación en tiempo real:** Restringida al uso de WebSocket con STOMP.
+
+---
+
+## Supuestos arquitectónicos
+
+* **Persistencia:** La documentación del proyecto (READMEs) no detalla la base de datos utilizada (posible uso de memoria o JPA simple). Para un entorno de producción, se asume la necesidad de integrar una base de datos permanente (p. ej. Postgres/MariaDB) para usuarios y/o estado persistente de partidas.
+* **Consistencia y Orden:** Los mensajes importantes para el estado de juego deben ser diseñados para ser **idempotentes** o deben incluir **suficiente contexto** (timestamps, identificadores de secuencia) para que el orden y la duplicación no afecten la lógica de las partidas.
+
+---
+
+## Flujo completo del juego
+
+1.  El usuario accede al frontend y es **redirigido a AWS Cognito** (Hosted UI) para iniciar sesión.
+2.  Tras la autenticación, el frontend recibe los **tokens** (ID/Access).
+3.  El cliente utiliza estos tokens para:
+    * Realizar llamadas **REST** (p. ej., crear o unirse a partidas).
+    * Establecer la conexión **WebSocket/STOMP**.
+4.  Una vez conectado a WebSocket, el cliente se **suscribe** a los tópicos de la partida para recibir el estado (`/topic/game/{matchId}`).
+5.  El cliente envía **comandos** al servidor (`/app/move`, `/app/chat`).
+6.  El **`GameEngine`** procesa estos comandos y publica las actualizaciones de estado de vuelta a todos los clientes suscritos.
+7.  El `MatchService` controla la creación, estado y finalización de partidas.
+
+### Diagramas de Actividades
+
+* **Flujo Fuel War**
 
 ![alt text](<src/img/Shipwreckeds flujo (Fuel War).png>)
 
+* **Flujo Votación**
+    
 ![alt text](<src/img/Shipwreckeds flujo (votación).png>)
 
-### Diagrama de despliegue
+---
 
-![alt text](src/img/Despliegue.jpeg)
+## Estructura de carpetas
 
-## Decisiones de Arquitectura
+La estructura principal del código fuente sigue las convenciones de Spring Boot/Maven.
 
-La arquitectura de comunicación en tiempo real de Shipwreckeds se diseñó para soportar interacciones bidireccionales de baja latencia entre clientes (jugadores) y el servidor, con un enfoque en escalabilidad razonable, claridad en el modelado de mensajes y compatibilidad con el ecosistema Spring.
+src/main/java/com/arsw/shipwreckeds/ ├── ShipwreckedsBackendApplication.java # Aplicación principal ├── config/ │ └── WebSocketConfig.java # Configuración de WebSocket y STOMP ├── controller/ # Controladores REST y WebSocket/STOMP │ ├── AuthController.java │ ├── MatchController.java │ ├── GameController.java │ └── WebSocketController.java ├── service/ # Lógica de negocio y motor de juego │ ├── AuthService.java │ ├── MatchService.java │ ├── GameEngine.java # Motor principal │ ├── NpcService.java │ └── RoleService.java ├── model/ # Clases de dominio y DTOs │ ├── Match.java │ ├── Player.java │ ├── ChatMessage.java │ ├── Position.java │ ├── Task.java │ ├── Npc.java │ ├── MatchStatus.java │ └── dto/ # Data Transfer Objects (LoginRequest, GameState, etc.) └── ...
 
-1. Comunicación en tiempo real: WebSocket
+src/main/resources/ └── application.properties # Configuración general y de Cognito
 
-- Justificación: WebSocket proporciona un canal full‑duplex persistente entre cliente y servidor, lo cual es esencial para un juego multijugador donde se requieren actualizaciones frecuentes (posiciones, eventos de juego, chat, votaciones) y respuesta rápida. A diferencia de polling o long‑polling, WebSocket reduce la sobrecarga de conexión y la latencia promedio, mejorando la experiencia de los jugadores.
-- Uso en el proyecto: la capa de transporte usa la especificación WebSocket para mantener sesiones activas y transmitir eventos del `GameEngine` hacia los clientes y viceversa.
 
-2. Protocolo de mensajería: STOMP sobre WebSocket
+---
 
-- Justificación: STOMP (Simple Text Oriented Messaging Protocol) sobre WebSocket aporta una capa de mensajería estructurada (con tópicos y colas lógicas, suscripciones y destinos) que facilita el diseño pub/sub de eventos de juego (p. ej. broadcast de estado del juego, mensajes privados, notificaciones de votación). Al usar STOMP se mejora la separación entre la lógica de transporte y la semántica del mensaje, lo que simplifica la evolución del protocolo de juego y la integración con componentes de Spring que ya ofrecen soporte nativo.
-- Beneficios prácticos: enrutamiento sencillo de mensajes por destino, control de suscripciones por sesión, posibilidad de integrar brokers si se requiere escalabilidad horizontal (p. ej. RabbitMQ, ActiveMQ o un broker Redis) sin cambiar la API de los clientes.
+## Cómo ejecutar el proyecto
 
-3. Decisiones operacionales y de seguridad
+### Requisitos
 
-- Broker y escalabilidad: la implementación inicial emplea el broker simple/embebido que provee Spring para facilitar el desarrollo.
-- Autenticación y autorización: las conexiones WebSocket se establecen tras la autenticación del usuario (ver `AuthController` / `AuthService`), y se aplican reglas de acceso sobre destinos/STOMP headers para evitar que usuarios no autorizados envíen o se suscriban a canales restringidos.
-- Consistencia y orden: los mensajes relevantes para el estado de juego se diseñan para ser idempotentes o incluir suficiente contexto (timestamps, identificadores de secuencia) cuando el orden y la duplicación puedan afectar la lógica de las partidas.
+* **Java 11+** (o la versión especificada en `pom.xml`)
+* **Maven**
 
-4. Implementación y mapeo al código
+### 1. Configuración de Autenticación (AWS Cognito)
 
-- Configuración de transporte y endpoints WebSocket: `src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java` — define los endpoints, los prefijos de destino y la configuración STOMP.
-- Controladores y manejo de mensajes: `src/main/java/com/arsw/shipwreckeds/controller/WebSocketController.java` y `GameController.java` exponen destinos y manejadores que traducen entre los DTOs del dominio (ej. `GameState`, `MoveCommand`, `ChatMessage`) y los mensajes STOMP enviados/recibidos por los clientes.
-- Motor de juego: `src/main/java/com/arsw/shipwreckeds/service/GameEngine.java` publica eventos de estado y procesa comandos recibidos desde WebSocket/STOMP.
+Antes de ejecutar, se deben configurar las variables de entorno o propiedades de la aplicación con las credenciales de AWS Cognito.
 
-## Estructura principal
+| Variable/Propiedad | Descripción | Ejemplo de Valor |
+| :--- | :--- | :--- |
+| `COGNITO_DOMAIN` | Dominio del Hosted UI de Cognito. | `https://us-east-1symlrgxi6.auth.us-east-1.amazoncognito.com` |
+| `COGNITO_CLIENT_ID` | ID del App Client de Cognito. | *[ID del cliente]* |
+| `COGNITO_CLIENT_SECRET` | Secreto del App Client (si aplica, opcional). | *[Secreto]* |
+| `COGNITO_SCOPE` | Scopes solicitados. | `email openid phone` |
+| `app.cors.allowed-origins` | URL(s) permitidas para solicitudes CORS (separadas por comas). | `http://localhost:5173` |
 
-- Aplicación principal: [`com.arsw.shipwreckeds.ShipwreckedsBackendApplication`](src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java) — [src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java](src/main/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplication.java)
-- Configuración WebSocket: [`com.arsw.shipwreckeds.config.WebSocketConfig`](src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java) — [src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java](src/main/java/com/arsw/shipwreckeds/config/WebSocketConfig.java)
+**Usuarios precargados (ejemplo):** Si se utiliza la configuración de Cognito precargada, los usuarios son **ana, bruno, carla, diego, eva** con la contraseña `Arsw2025-2`.
 
-### Controladores (REST / WebSocket)
+### 2. Compilación y Ejecución
 
-- [`com.arsw.shipwreckeds.controller.AuthController`](src/main/java/com/arsw/shipwreckeds/controller/AuthController.java) — [src/main/java/com/arsw/shipwreckeds/controller/AuthController.java](src/main/java/com/arsw/shipwreckeds/controller/AuthController.java)
-- [`com.arsw.shipwreckeds.controller.MatchController`](src/main/java/com/arsw/shipwreckeds/controller/MatchController.java) — [src/main/java/com/arsw/shipwreckeds/controller/MatchController.java](src/main/java/com/arsw/shipwreckeds/controller/MatchController.java)
-- [`com.arsw.shipwreckeds.controller.GameController`](src/main/java/com/arsw/shipwreckeds/controller/GameController.java) — [src/main/java/com/arsw/shipwreckeds/controller/GameController.java](src/main/java/com/arsw/shipwreckeds/controller/GameController.java)
-- [`com.arsw.shipwreckeds.controller.WebSocketController`](src/main/java/com/arsw/shipwreckeds/controller/WebSocketController.java) — [src/main/java/com/arsw/shipwreckeds/controller/WebSocketController.java](src/main/java/com/arsw/shipwreckeds/controller/WebSocketController.java)
-
-### Servicios y motor de juego
-
-- [`com.arsw.shipwreckeds.service.AuthService`](src/main/java/com/arsw/shipwreckeds/service/AuthService.java) — [src/main/java/com/arsw/shipwreckeds/service/AuthService.java](src/main/java/com/arsw/shipwreckeds/service/AuthService.java)
-- [`com.arsw.shipwreckeds.service.MatchService`](src/main/java/com/arsw/shipwreckeds/service/MatchService.java) — [src/main/java/com/arsw/shipwreckeds/service/MatchService.java](src/main/java/com/arsw/shipwreckeds/service/MatchService.java)
-- [`com.arsw.shipwreckeds.service.GameEngine`](src/main/java/com/arsw/shipwreckeds/service/GameEngine.java) — [src/main/java/com/arsw/shipwreckeds/service/GameEngine.java](src/main/java/com/arsw/shipwreckeds/service/GameEngine.java)
-- [`com.arsw.shipwreckeds.service.NpcService`](src/main/java/com/arsw/shipwreckeds/service/NpcService.java) — [src/main/java/com/arsw/shipwreckeds/service/NpcService.java](src/main/java/com/arsw/shipwreckeds/service/NpcService.java)
-- [`com.arsw.shipwreckeds.service.RoleService`](src/main/java/com/arsw/shipwreckeds/service/RoleService.java) — [src/main/java/com/arsw/shipwreckeds/service/RoleService.java](src/main/java/com/arsw/shipwreckeds/service/RoleService.java)
-
-### Modelos y DTOs (ejemplos)
-
-Modelos principales:
-
-- [`com.arsw.shipwreckeds.model.Match`](src/main/java/com/arsw/shipwreckeds/model/Match.java) — [src/main/java/com/arsw/shipwreckeds/model/Match.java](src/main/java/com/arsw/shipwreckeds/model/Match.java)
-- [`com.arsw.shipwreckeds.model.Player`](src/main/java/com/arsw/shipwreckeds/model/Player.java) — [src/main/java/com/arsw/shipwreckeds/model/Player.java](src/main/java/com/arsw/shipwreckeds/model/Player.java)
-- [`com.arsw.shipwreckeds.model.ChatMessage`](src/main/java/com/arsw/shipwreckeds/model/ChatMessage.java) — [src/main/java/com/arsw/shipwreckeds/model/ChatMessage.java](src/main/java/com/arsw/shipwreckeds/model/ChatMessage.java)
-- [`com.arsw.shipwreckeds.model.Position`](src/main/java/com/arsw/shipwreckeds/model/Position.java) — [src/main/java/com/arsw/shipwreckeds/model/Position.java](src/main/java/com/arsw/shipwreckeds/model/Position.java)
-- [`com.arsw.shipwreckeds.model.Task`](src/main/java/com/arsw/shipwreckeds/model/Task.java) — [src/main/java/com/arsw/shipwreckeds/model/Task.java](src/main/java/com/arsw/shipwreckeds/model/Task.java)
-- [`com.arsw.shipwreckeds.model.Npc`](src/main/java/com/arsw/shipwreckeds/model/Npc.java) — [src/main/java/com/arsw/shipwreckeds/model/Npc.java](src/main/java/com/arsw/shipwreckeds/model/Npc.java)
-- [`com.arsw.shipwreckeds.model.MatchStatus`](src/main/java/com/arsw/shipwreckeds/model/MatchStatus.java) — [src/main/java/com/arsw/shipwreckeds/model/MatchStatus.java](src/main/java/com/arsw/shipwreckeds/model/MatchStatus.java)
-
-DTOs de uso público:
-
-- [`com.arsw.shipwreckeds.model.dto.LoginRequest`](src/main/java/com/arsw/shipwreckeds/model/dto/LoginRequest.java) — [src/main/java/com/arsw/shipwreckeds/model/dto/LoginRequest.java](src/main/java/com/arsw/shipwreckeds/model/dto/LoginRequest.java)
-- [`com.arsw.shipwreckeds.model.dto.CreateMatchRequest`](src/main/java/com/arsw/shipwreckeds/model/dto/CreateMatchRequest.java) — [src/main/java/com/arsw/shipwreckeds/model/dto/CreateMatchRequest.java](src/main/java/com/arsw/shipwreckeds/model/dto/CreateMatchRequest.java)
-- [`com.arsw.shipwreckeds.model.dto.CreateMatchResponse`](src/main/java/com/arsw/shipwreckeds/model/dto/CreateMatchResponse.java) — [src/main/java/com/arsw/shipwreckeds/model/dto/CreateMatchResponse.java](src/main/java/com/arsw/shipwreckeds/model/dto/CreateMatchResponse.java)
-- [`com.arsw.shipwreckeds.model.dto.GameState`](src/main/java/com/arsw/shipwreckeds/model/dto/GameState.java) — [src/main/java/com/arsw/shipwreckeds/model/dto/GameState.java](src/main/java/com/arsw/shipwreckeds/model/dto/GameState.java)
-- Otros DTOs: [`AvatarState`](src/main/java/com/arsw/shipwreckeds/model/dto/AvatarState.java), [`MoveCommand`](src/main/java/com/arsw/shipwreckeds/model/dto/MoveCommand.java), votación y combustible — [src/main/java/com/arsw/shipwreckeds/model/dto/](src/main/java/com/arsw/shipwreckeds/model/dto/)
-
-### Recursos y tests
-
-- Configuración: [src/main/resources/application.properties](src/main/resources/application.properties)
-- Test base: [`com.arsw.shipwreckeds.ShipwreckedsBackendApplicationTests`](src/test/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplicationTests.java) — [src/test/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplicationTests.java](src/test/java/com/arsw/shipwreckeds/ShipwreckedsBackendApplicationTests.java)
-
-## Requisitos
-
-- Java 11+ (o la versión que especifique el pom.xml)
-- Maven
-
-## Compilar y ejecutar
-
-Compilar:
+Compilar el proyecto (ignorar tests si es necesario):
 
 ```sh
-mvn clean package
-```
+mvn clean package -DskipTests
+Ejecutar el backend:
 
-### Autenticación con AWS Cognito
+Bash
 
-- Dominio: `https://us-east-1symlrgxi6.auth.us-east-1.amazoncognito.com`
-- Usuarios precargados: **ana, bruno, carla, diego, eva** (contraseña `Arsw2025-2`).
-- Configura las credenciales del cliente en `application.properties` o variables de entorno:
-  - `COGNITO_CLIENT_ID`
-  - `COGNITO_CLIENT_SECRET` (opcional si el cliente no usa secreto)
-- El frontend redirige al Hosted UI de Cognito. Define el redirect URI permitido (por defecto `http://localhost:5173`) y, si lo necesitas, sobreescribe con `VITE_COGNITO_REDIRECT_URI` al ejecutar `npm run dev` en `front/`.
-- El scope configurado actualmente es `email openid phone`; ajusta `COGNITO_SCOPE` si necesitas permisos adicionales.
-- Si tu frontend vive en otro dominio, añade su URL a `app.cors.allowed-origins` (propiedad separada por comas) para que el backend responda a las solicitudes CORS.
+# Opción 1: Ejecutar el JAR generado
+java -jar target/shipwreckeds-backend-*.jar
+
+# Opción 2: Ejecutar directamente con Spring Boot Maven Plugin
+mvn spring-boot:run
+Pruebas
+El proyecto incluye tests básicos que se pueden ejecutar con Maven.
+
+Ejecución de Pruebas
+Bash
+
+# Ejecutar todos los tests unitarios y de integración
+mvn test
+
+# Ejecutar un test específico (ejemplo)
+mvn -Dtest=ShipwreckedsBackendApplicationTests test
+Test base: com.arsw.shipwreckeds.ShipwreckedsBackendApplicationTests
+
+Se recomienda ampliar la cobertura con pruebas específicas para el GameEngine y las funcionalidades de WebSocket/STOMP.
+
+Despliegue
+Se recomiendan las siguientes estrategias para el despliegue del artefacto generado (.jar):
+
+1. Despliegue con JAR
+Compilar el proyecto: mvn clean package.
+
+Ejecutar el JAR en un servidor: java -jar target/shipwreckeds-backend-*.jar.
+
+2. Despliegue con Docker (Recomendado)
+Si se añade un Dockerfile al proyecto, el despliegue puede gestionarse mediante contenedores:
+
+Build de la imagen: docker build -t shipwreckeds-backend .
+
+Ejecución: docker run -e COGNITO_CLIENT_ID=... -p 8080:8080 shipwreckeds-backend
+
+Consideraciones de Escalabilidad
+Para manejar múltiples instancias del backend (escalado horizontal), se debe migrar el broker STOMP embebido a un broker externo compartido (p. ej., Redis, RabbitMQ o ActiveMQ) para compartir el estado de sesión y los tópicos entre todas las instancias.
