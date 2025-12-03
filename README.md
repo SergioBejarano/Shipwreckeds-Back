@@ -105,8 +105,20 @@ El backend soporta la lógica de un juego multijugador con elementos de simulaci
 
 ## Supuestos arquitectónicos
 
-* **Persistencia:** La documentación del proyecto (READMEs) no detalla la base de datos utilizada (posible uso de memoria o JPA simple). Para un entorno de producción, se asume la necesidad de integrar una base de datos permanente (p. ej. Postgres/MariaDB) para usuarios y/o estado persistente de partidas.
-* **Consistencia y Orden:** Los mensajes importantes para el estado de juego deben ser diseñados para ser **idempotentes** o deben incluir **suficiente contexto** (timestamps, identificadores de secuencia) para que el orden y la duplicación no afecten la lógica de las partidas.
+* **Conexión estable de los jugadores**
+El diseño del sistema asume que los clientes mantienen una conexión relativamente estable para garantizar la coherencia de los eventos en tiempo real (movimientos, chats, votaciones).
+Esto permite evitar sobrecargar la arquitectura con mecanismos avanzados de reconexión, buffering o replicación de eventos diferidos.
+Si bien existen estrategias de reconexión automática, la lógica principal del juego se construye bajo el supuesto de que los cortes de red serán excepcionales y breves.
+
+* **Prioridad al tiempo real por encima de latencia mínima**
+El sistema valora la consistencia temporal de los eventos más que la latencia absoluta.
+Esto significa que, aunque se optimiza para transmitir eventos rápidamente, se prioriza que todos los jugadores reciban las actualizaciones en el mismo orden y sin inconsistencias**, incluso si esto añade milisegundos adicionales en sincronización interna.
+Este enfoque es clave para garantizar un juego justo en entornos multijugador donde los eventos simultáneos pueden impactar decisiones o votaciones.
+
+* **Partidas no persistentes (TTL en Redis)**
+Las partidas se consideran efímeras y su estado no requiere persistencia a largo plazo.
+Redis se utiliza para almacenar estados temporales con un TTL que elimina automáticamente la información una vez finalizada o abandonada la sala, lo que reduce costos de almacenamiento, evita acumulación de datos, y simplifica la lógica de limpieza.
+Este supuesto permite optimizar el rendimiento del backend y mantener la arquitectura ligera, enfocada únicamente en los datos activos del momento.
 
 ---
 
