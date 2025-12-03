@@ -144,15 +144,54 @@ Este supuesto permite optimizar el rendimiento del backend y mantener la arquite
     
 ![alt text](<src/img/Shipwreckeds flujo (votación).png>)
 
+
+### Diagramas de Secuencia
+
+![alt text](src/img/diagramaS1.png)
+
+![alt text](src/img/diagramaS2.png)
+
+![alt text](src/img/diagramaS3.png)
+
+![alt text](src/img/diagramaS4.png)
+
+![alt text](src/img/diagramaS5.png)
+
 ---
 
 ## Estructura de carpetas
 
 La estructura principal del código fuente sigue las convenciones de Spring Boot/Maven.
 
-src/main/java/com/arsw/shipwreckeds/ ├── ShipwreckedsBackendApplication.java # Aplicación principal ├── config/ │ └── WebSocketConfig.java # Configuración de WebSocket y STOMP ├── controller/ # Controladores REST y WebSocket/STOMP │ ├── AuthController.java │ ├── MatchController.java │ ├── GameController.java │ └── WebSocketController.java ├── service/ # Lógica de negocio y motor de juego │ ├── AuthService.java │ ├── MatchService.java │ ├── GameEngine.java # Motor principal │ ├── NpcService.java │ └── RoleService.java ├── model/ # Clases de dominio y DTOs │ ├── Match.java │ ├── Player.java │ ├── ChatMessage.java │ ├── Position.java │ ├── Task.java │ ├── Npc.java │ ├── MatchStatus.java │ └── dto/ # Data Transfer Objects (LoginRequest, GameState, etc.) └── ...
-
-src/main/resources/ └── application.properties # Configuración general y de Cognito
+src/
+└── main/
+    ├── java/com/arsw/shipwreckeds/
+    │   ├── ShipwreckedsBackendApplication.java   # Aplicación principal
+    │   ├── config/
+    │   │   └── WebSocketConfig.java              # Configuración de WebSocket y STOMP
+    │   ├── controller/                           # Controladores REST y WebSocket/STOMP
+    │   │   ├── AuthController.java
+    │   │   ├── MatchController.java
+    │   │   ├── GameController.java
+    │   │   └── WebSocketController.java
+    │   ├── service/                              # Lógica de negocio y motor de juego
+    │   │   ├── AuthService.java
+    │   │   ├── MatchService.java
+    │   │   ├── GameEngine.java                   # Motor principal del juego
+    │   │   ├── NpcService.java
+    │   │   └── RoleService.java
+    │   ├── model/                                # Clases de dominio y DTOs
+    │   │   ├── Match.java
+    │   │   ├── Player.java
+    │   │   ├── ChatMessage.java
+    │   │   ├── Position.java
+    │   │   ├── Task.java
+    │   │   ├── Npc.java
+    │   │   ├── MatchStatus.java
+    │   │   └── dto/                              # Data Transfer Objects (LoginRequest, GameState, etc.)
+    │   └── ...
+    └── resources/
+        └── application.properties                # Configuración general y de Cognito
 
 
 ---
@@ -164,21 +203,8 @@ src/main/resources/ └── application.properties # Configuración general y 
 * **Java 11+** (o la versión especificada en `pom.xml`)
 * **Maven**
 
-### 1. Configuración de Autenticación (AWS Cognito)
 
-Antes de ejecutar, se deben configurar las variables de entorno o propiedades de la aplicación con las credenciales de AWS Cognito.
-
-| Variable/Propiedad | Descripción | Ejemplo de Valor |
-| :--- | :--- | :--- |
-| `COGNITO_DOMAIN` | Dominio del Hosted UI de Cognito. | `https://us-east-1symlrgxi6.auth.us-east-1.amazoncognito.com` |
-| `COGNITO_CLIENT_ID` | ID del App Client de Cognito. | *[ID del cliente]* |
-| `COGNITO_CLIENT_SECRET` | Secreto del App Client (si aplica, opcional). | *[Secreto]* |
-| `COGNITO_SCOPE` | Scopes solicitados. | `email openid phone` |
-| `app.cors.allowed-origins` | URL(s) permitidas para solicitudes CORS (separadas por comas). | `http://localhost:5173` |
-
-**Usuarios precargados (ejemplo):** Si se utiliza la configuración de Cognito precargada, los usuarios son **ana, bruno, carla, diego, eva** con la contraseña `Arsw2025-2`.
-
-### 2. Compilación y Ejecución
+###  Compilación y Ejecución
 
 Compilar el proyecto (ignorar tests si es necesario):
 
@@ -206,22 +232,3 @@ mvn test
 mvn -Dtest=ShipwreckedsBackendApplicationTests test
 Test base: com.arsw.shipwreckeds.ShipwreckedsBackendApplicationTests
 
-Se recomienda ampliar la cobertura con pruebas específicas para el GameEngine y las funcionalidades de WebSocket/STOMP.
-
-Despliegue
-Se recomiendan las siguientes estrategias para el despliegue del artefacto generado (.jar):
-
-1. Despliegue con JAR
-Compilar el proyecto: mvn clean package.
-
-Ejecutar el JAR en un servidor: java -jar target/shipwreckeds-backend-*.jar.
-
-2. Despliegue con Docker (Recomendado)
-Si se añade un Dockerfile al proyecto, el despliegue puede gestionarse mediante contenedores:
-
-Build de la imagen: docker build -t shipwreckeds-backend .
-
-Ejecución: docker run -e COGNITO_CLIENT_ID=... -p 8080:8080 shipwreckeds-backend
-
-Consideraciones de Escalabilidad
-Para manejar múltiples instancias del backend (escalado horizontal), se debe migrar el broker STOMP embebido a un broker externo compartido (p. ej., Redis, RabbitMQ o ActiveMQ) para compartir el estado de sesión y los tópicos entre todas las instancias.
