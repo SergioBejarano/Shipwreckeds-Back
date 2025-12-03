@@ -161,39 +161,39 @@ Este supuesto permite optimizar el rendimiento del backend y mantener la arquite
 
 ## Estructura de carpetas
 
-La estructura principal del código fuente sigue las convenciones de Spring Boot/Maven.
-
+```text
 src/
 └── main/
-    ├── java/com/arsw/shipwreckeds/
-    │   ├── ShipwreckedsBackendApplication.java   # Aplicación principal
-    │   ├── config/
-    │   │   └── WebSocketConfig.java              # Configuración de WebSocket y STOMP
-    │   ├── controller/                           # Controladores REST y WebSocket/STOMP
-    │   │   ├── AuthController.java
-    │   │   ├── MatchController.java
-    │   │   ├── GameController.java
-    │   │   └── WebSocketController.java
-    │   ├── service/                              # Lógica de negocio y motor de juego
-    │   │   ├── AuthService.java
-    │   │   ├── MatchService.java
-    │   │   ├── GameEngine.java                   # Motor principal del juego
-    │   │   ├── NpcService.java
-    │   │   └── RoleService.java
-    │   ├── model/                                # Clases de dominio y DTOs
-    │   │   ├── Match.java
-    │   │   ├── Player.java
-    │   │   ├── ChatMessage.java
-    │   │   ├── Position.java
-    │   │   ├── Task.java
-    │   │   ├── Npc.java
-    │   │   ├── MatchStatus.java
-    │   │   └── dto/                              # Data Transfer Objects (LoginRequest, GameState, etc.)
-    │   └── ...
+    ├── java/
+    │   └── com/arsw/shipwreckeds/
+    │       ├── ShipwreckedsBackendApplication.java    # Aplicación principal
+    │       ├── config/
+    │       │   └── WebSocketConfig.java               # Configuración de WebSocket y STOMP
+    │       ├── controller/                            # Controladores REST y WebSocket/STOMP
+    │       │   ├── AuthController.java
+    │       │   ├── MatchController.java
+    │       │   ├── GameController.java
+    │       │   └── WebSocketController.java
+    │       ├── service/                               # Lógica de negocio y motor de juego
+    │       │   ├── AuthService.java
+    │       │   ├── MatchService.java
+    │       │   ├── GameEngine.java                    # Motor principal del juego
+    │       │   ├── NpcService.java
+    │       │   └── RoleService.java
+    │       ├── model/                                 # Clases de dominio y DTOs
+    │       │   ├── Match.java
+    │       │   ├── Player.java
+    │       │   ├── ChatMessage.java
+    │       │   ├── Position.java
+    │       │   ├── Task.java
+    │       │   ├── Npc.java
+    │       │   ├── MatchStatus.java
+    │       │   └── dto/                               # DTOs (LoginRequest, GameState, etc.)
+    │       └── ...
     └── resources/
-        └── application.properties                # Configuración general y de Cognito
+        └── application.properties                     # Configuración general y de Cognito
 
-
+```
 ---
 
 ## Cómo ejecutar el proyecto
