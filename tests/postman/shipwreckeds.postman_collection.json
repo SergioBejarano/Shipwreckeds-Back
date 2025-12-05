@@ -1,0 +1,132 @@
+{
+  "info": {
+    "name": "Shipwreckeds REST Smoke",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Secuencia básica para validar los endpoints REST del backend sin incluir los flujos de login Cognito."
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Health endpoint responde 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.text()).to.include('OK');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Match",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"hostName\": \"{{hostUser}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/match/create",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "match", "create"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Partida creada responde 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body && body.code) {",
+              "    pm.environment.set('matchCode', body.code);",
+              "    pm.collectionVariables.set('matchCode', body.code);",
+              "  }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Join Match",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{matchCode}}\",\n  \"username\": \"{{crewUser}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/match/join",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "match", "join"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Join responde 200', function () {",
+              "  pm.expect(pm.environment.get('matchCode') || pm.collectionVariables.get('matchCode')).to.be.ok;",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    
+    {
+      "name": "Fetch Match",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/match/{{matchCode}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "match", "{{matchCode}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Fetch responde 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  const match = pm.response.json();",
+              "  pm.expect(match.code).to.eql(pm.environment.get('matchCode') || pm.collectionVariables.get('matchCode'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "matchCode", "value": "", "type": "string"}
+  ]
+}
