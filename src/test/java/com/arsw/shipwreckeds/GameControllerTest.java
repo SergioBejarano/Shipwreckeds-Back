@@ -4,9 +4,11 @@ import com.arsw.shipwreckeds.controller.GameController;
 import com.arsw.shipwreckeds.controller.WebSocketController;
 import com.arsw.shipwreckeds.model.Match;
 import com.arsw.shipwreckeds.model.MatchStatus;
+import com.arsw.shipwreckeds.model.Npc;
 import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.MoveCommand;
+import com.arsw.shipwreckeds.model.dto.GameState;
 import com.arsw.shipwreckeds.service.AuthService;
 import com.arsw.shipwreckeds.service.MatchService;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +19,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -126,6 +129,44 @@ class GameControllerTest {
         gameController.handleMove(code, second);
 
         verify(webSocketController).broadcastGameState(eq(code), any());
+    }
+
+    @Test
+    @DisplayName("Las peticiones incompletas se descartan sin tocar servicios")
+    void handleMove_nullPayload_returnsEarly() {
+        gameController.handleMove("CODE", null);
+
+        verifyNoInteractions(matchService, authService, webSocketController);
+    }
+
+    @Test
+    @DisplayName("buildGameState incluye opciones de votación y metadatos")
+    void buildGameState_includesVotingMetadata() throws Exception {
+        Match match = new Match(1L, "CODE");
+        match.setStatus(MatchStatus.STARTED);
+        match.setTimerSeconds(42);
+        match.setVotingActive(true);
+        match.setVoteStartEpochMs(1_000L);
+
+        Player human = new Player(1L, "human", "skin", new Position(10, 5));
+        human.setAlive(true);
+        Player infiltrator = new Player(2L, "spy", "skin", new Position(15, -3));
+        infiltrator.setInfiltrator(true);
+        infiltrator.setAlive(true);
+        match.setPlayers(new ArrayList<>(List.of(human, infiltrator)));
+
+        Npc npc = new Npc(100L, "npc", new Position(1, 1), 0.3, false);
+        match.setNpcs(new ArrayList<>(List.of(npc)));
+
+        Method m = GameController.class.getDeclaredMethod("buildGameState", Match.class);
+        m.setAccessible(true);
+        GameState state = (GameState) m.invoke(gameController, match);
+
+        assertTrue(state.isVotingActive());
+        assertNotNull(state.getVoteOptions(), "Las opciones de votación deben incluirse cuando votingActive es true");
+        assertEquals(2, state.getVoteOptions().size(), "Debe exponer NPCs y al infiltrado como opciones");
+        assertEquals(match.getCode(), state.getCode());
+        assertEquals(match.getTimerSeconds(), state.getTimerSeconds());
     }
 
     private void stubMatchMutation(String code, Match match) {
